@@ -1,10 +1,13 @@
 // Onglet « Trajet » : paliers à gauche, carte au centre, étapes + détail à droite.
 import { useMemo, useState } from 'react';
 import { JOBS } from '../data/game';
-import { coordsKey, parseCoords, suggestPath, type PathStyle } from '../model/geo';
+import { locateStepMap, MAIN_WORLD, useMapIndex } from '../data/maps';
+import { checkProject, type Check } from '../model/checks';
+import { coordsKey, suggestPath, type PathStyle } from '../model/geo';
 import { cloneBracket, cloneStep, newBracket, newRoute, newStep } from '../model/project';
 import type { Bracket, Project, Route, Step } from '../model/types';
 import type { ProjectStore } from '../state';
+import { MapSearch } from './MapSearch';
 import { MonsterPicker, ResourcePicker } from './pickers';
 import { StepInspector } from './StepInspector';
 import { WorldMap } from './WorldMap';
@@ -47,6 +50,10 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
   const [pathStyle, setPathStyle] = useState<PathStyle>('coords');
   const [idInput, setIdInput] = useState('');
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [world, setWorld] = useState(MAIN_WORLD);
+  const [searching, setSearching] = useState(false);
+  const index = useMapIndex();
+  const checks = useMemo(() => checkProject(project, index), [project, index]);
 
   const route: Route | null = project[routeName];
   const bracket: Bracket | undefined = route?.brackets[Math.min(bracketIndex, (route?.brackets.length ?? 1) - 1)];
@@ -96,11 +103,17 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
   const onCellClick = (c: { x: number; y: number }) => {
     if (!bracket) return;
     if (mapMode === 'select') {
-      const hit = steps.find((s) => { const sc = parseCoords(s.map); return sc && coordsKey(sc) === coordsKey(c); });
+      const hit = steps.find((s) => { const at = locateStepMap(index, s.map); return at && at.x === c.x && at.y === c.y; });
       setSelectedId(hit?.id ?? null);
       return;
     }
-    addStep(coordsKey(c));
+    if (world === MAIN_WORLD) {
+      addStep(coordsKey(c));
+      return;
+    }
+    // Hors du Monde des Douze (Incarnam…), les coordonnées sont ambiguës : on écrit l'id de la carte.
+    const maps = index?.byCoords.get(`${world}:${c.x},${c.y}`);
+    if (maps?.length) addStep(maps[0].id);
   };
 
   if (!route) {
@@ -216,6 +229,7 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
             <button type="submit">Ajouter</button>
             <button type="button" onClick={() => addStep('havenbag')}>+ Havre-sac</button>
           </form>
+          <button type="button" onClick={() => setSearching(true)}>🔍 Chercher une carte</button>
           <button
             type="button" disabled={steps.length < 2}
             title="La dernière étape repart vers la première"
@@ -225,7 +239,13 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
             })}
           >Boucler</button>
         </div>
-        <WorldMap steps={steps} ghostSteps={ghostSteps} selectedId={selectedId} mode={mapMode} onCellClick={onCellClick} />
+        <WorldMap
+          steps={steps} ghostSteps={ghostSteps} selectedId={selectedId} mode={mapMode}
+          index={index} world={world} onWorldChange={setWorld} onCellClick={onCellClick}
+        />
+        {searching && (
+          <MapSearch index={index} onClose={() => setSearching(false)} onAdd={(map) => { addStep(map); setSearching(false); }} />
+        )}
       </section>
 
       <aside className="steps-column">
@@ -274,16 +294,48 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
           </ol>
           {steps.length === 0 && <p className="muted pad">Clique sur la carte pour ajouter la première étape.</p>}
         </div>
+        <ChecksPanel
+          checks={checks}
+          onSelect={(c) => {
+            if (c.route !== 'global' && c.route !== routeName) setRouteName(c.route);
+            if (c.bracketIndex !== undefined) setBracketIndex(c.bracketIndex);
+            if (c.stepId) setSelectedId(c.stepId);
+          }}
+        />
         {selected && (
           <StepInspector
+            index={index}
             step={selected}
-            index={selectedIndex}
+            stepIndex={selectedIndex}
             isPhenixRoute={routeName === 'phenix'}
             onChange={(mutate) => editStep(selected.id, mutate)}
           />
         )}
       </aside>
     </div>
+  );
+}
+
+const LEVEL_ICON: Record<Check['level'], string> = { error: '⛔', warning: '⚠️', info: 'ℹ️' };
+
+function ChecksPanel({ checks, onSelect }: { checks: Check[]; onSelect: (c: Check) => void }) {
+  const errors = checks.filter((c) => c.level === 'error').length;
+  const warnings = checks.filter((c) => c.level === 'warning').length;
+  return (
+    <details className="checks-panel" open={errors > 0}>
+      <summary>
+        Vérifications : {errors ? `${errors} erreur(s)` : ''}{errors && warnings ? ', ' : ''}
+        {warnings ? `${warnings} alerte(s)` : ''}{!errors && !warnings ? 'rien de bloquant ✓' : ''}
+        <span className="muted"> · {checks.length} au total</span>
+      </summary>
+      <ul>
+        {checks.map((c, i) => (
+          <li key={i} className={c.level} onClick={() => onSelect(c)}>
+            {LEVEL_ICON[c.level]} <span className="muted">{c.route === 'global' ? 'script' : `${c.route}()`}</span> {c.message}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

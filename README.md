@@ -36,6 +36,12 @@ Ces réglages sont gardés dans `~/.scriptgen/config.json`. Le dossier d'export 
 - **Importer .lua** (ou *Ouvrir… → Scripts d'exemple*) : le script est relu avec un vrai parseur Lua.
   Ce qui est reconnu devient éditable ; **tout le reste est conservé à l'identique** en « Lua brut ».
 - L'**aperçu Lua** à droite se met à jour en direct. **Exporter** écrit `nom_du_fichier.lua` dans le dossier d'export, 📁 l'ouvre dans le Finder.
+- **Carte** : fond de carte de dofus-map.com (case « Fond », opacité réglable), survol = sous-zone et id de la carte.
+  Les cartes en id (intérieurs) sont placées à leurs coordonnées, en pointillés (⌂).
+  **🔍 Chercher une carte** : par id, par « x,y » ou par nom de sous-zone, avec l'image de la carte (DofusDB) ;
+  « + par x,y » pour l'extérieur, « + par id » pour un intérieur.
+- **Vérifications** (sous la liste des étapes) : id de carte inconnu, coordonnées sans carte, étape sans sortie,
+  coffre / maison mal formés, bank() qui ne dépose rien… Clic sur une alerte = aller à l'étape.
 - ⌘Z / ⇧⌘Z : annuler / rétablir. Le projet en cours est aussi sauvegardé automatiquement dans le navigateur.
 
 ## Structure du projet
@@ -55,6 +61,8 @@ src/
   data/                  Monstres, interactifs (JSON), métiers et ressources (Annexe du guide)
   components/            Interface React (carte, étapes, paramètres, sélecteurs)
 public/data/items.json   Objets (19 000 entrées, chargés à la demande)
+public/data/maps.json    Référentiel des 15 000 cartes (id, x, y, monde, sous-zone, extérieur) — npm run maps
+public/data/subareas.json, areas.json  Noms des sous-zones et zones
 tests/                   Tests (npm test)
 ```
 
@@ -69,6 +77,15 @@ tests/                   Tests (npm test)
 Pour une nouvelle **clé d'étape** : l'ajouter au type `Step` (`src/model/types.ts`), à `STEP_KEYS`
 (`src/lua/generate.ts`, ordre d'écriture), au `switch` de `step()` (`src/lua/import.ts`) et à
 `StepInspector.tsx`. Sans ça, une clé inconnue est quand même conservée à l'import (`extra`).
+
+## Données en ligne utilisées
+
+L'outil tourne en local mais le navigateur charge, si internet est disponible :
+- les **tuiles du fond de carte** depuis `dofus-map.com` (case « Fond » décochable) ;
+- les **images des cartes** depuis `api.dofusdb.fr`.
+
+Le référentiel des cartes (`public/data/maps.json`) est déjà dans le dépôt : il ne faut internet que pour le
+mettre à jour après une grosse mise à jour de Dofus (`npm run maps`). Sans internet, tout le reste fonctionne.
 
 ## Tests
 

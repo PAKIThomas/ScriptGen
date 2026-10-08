@@ -1,11 +1,13 @@
 // Détail d'une étape : carte, actions, sortie. Chaque champ = une clé d'étape de l'API.
+import { coordsIndexKey, locateStepMap, MAIN_WORLD, mapImageUrl, type MapIndex } from '../data/maps';
 import { DIRECTIONS, parseCoords } from '../model/geo';
 import { isRaw, type LuaValue, type Step } from '../model/types';
 import { luaValue } from '../lua/serialize';
 
 interface Props {
+  index: MapIndex | null;
   step: Step;
-  index: number;
+  stepIndex: number;
   isPhenixRoute: boolean;
   onChange: (mutate: (s: Step) => void) => void;
 }
@@ -85,7 +87,38 @@ function PipeField({ value, onChange, third }: { value: string | undefined; onCh
   );
 }
 
-export function StepInspector({ step, index, isPhenixRoute, onChange }: Props) {
+/** Fiche de la carte : sous-zone, ids aux mêmes coordonnées, image, bascule x,y ↔ id. */
+function MapCard({ index, map, onSetMap }: { index: MapIndex | null; map: string | number; onSetMap: (m: string | number) => void }) {
+  if (!index) return null;
+  const at = locateStepMap(index, map);
+  if (!at) return map === 'havenbag' ? <p className="muted small">Étape jouée dans le havre-sac.</p> : null;
+  const sameCoords = (index.byCoords.get(coordsIndexKey(MAIN_WORLD, at.x, at.y)) ?? []);
+  const shown = at.info ?? sameCoords.find((m) => m.outdoor) ?? sameCoords[0];
+  return (
+    <div className="map-card">
+      {shown && <img src={mapImageUrl(shown.id)} alt="" loading="lazy" />}
+      <div className="small">
+        {shown ? <><strong>{index.subAreaName(shown.subAreaId)}</strong> · {index.areaName(shown.subAreaId)}<br /></> : null}
+        [{at.x},{at.y}] {at.info && !at.info.outdoor ? '· intérieur' : ''}
+        {at.info && at.info.worldMap === MAIN_WORLD && at.info.outdoor && (
+          <div><button type="button" className="link-button" onClick={() => onSetMap(`${at.x},${at.y}`)}>écrire en « {at.x},{at.y} »</button></div>
+        )}
+        {!at.info && sameCoords.length > 0 && (
+          <div>
+            {sameCoords.length > 1 ? `${sameCoords.length} cartes ont ces coordonnées : ` : 'Id : '}
+            {sameCoords.slice(0, 6).map((m) => (
+              <button key={m.id} type="button" className="link-button" title={index.subAreaName(m.subAreaId)} onClick={() => onSetMap(m.id)}>
+                {m.id}{m.outdoor ? '' : ' (int.)'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function StepInspector({ index: mapIndex, step, stepIndex: index, isPhenixRoute, onChange }: Props) {
   const kind = pathKind(step.path);
   const path = typeof step.path === 'string' ? step.path : '';
   const dirMatch = /^(\w+)(?:\((\d+)\))?$/.exec(path);
@@ -110,6 +143,7 @@ export function StepInspector({ step, index, isPhenixRoute, onChange }: Props) {
         />
         <small className="muted">« x,y » pour l'extérieur, id de carte pour un intérieur (mine, donjon…), ou « havenbag ».</small>
       </label>
+      <MapCard index={mapIndex} map={step.map} onSetMap={(m) => onChange((s) => { s.map = m; })} />
 
       <fieldset>
         <legend>Actions sur la carte</legend>
