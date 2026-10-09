@@ -11,6 +11,7 @@ function projectWithAutomation() {
   p.automation = {
     equip: [{ level: 20, gid: 2414 }, { level: 1, gid: 8243 }],
     autoStat: 'vitality',
+    autoStuff: true,
     combat: { style: 'agressif', target: 'pv', maxCasts: 4, finishKill: true, challengeMode: 'auto' },
     privateStatus: true,
     archNotify: true,
@@ -26,6 +27,7 @@ describe('automatismes', () => {
     const lua = generate(projectWithAutomation());
     expect(() => luaparse.parse(lua, { luaVersion: '5.2' })).not.toThrow();
     expect(lua).toContain('inventory:equip(e.gid)');
+    expect(lua).toContain('    inventory:stuff()');
     expect(lua).toContain('{ level = 1, gid = 8243 }, { level = 20, gid = 2414 }');
     expect(lua).toContain('combat:setStyle("agressif")');
     expect(lua).toContain('character:upgradeStat("vitality", character:statPoints())');

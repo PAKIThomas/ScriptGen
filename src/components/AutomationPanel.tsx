@@ -88,6 +88,30 @@ function EquipEditor({ automation, onChange }: { automation: Automation; onChang
   );
 }
 
+/** Carte « Équipement » (onglets Paramètres et Automatismes). */
+export function EquipmentCard({ store }: { store: ProjectStore }) {
+  const { project, update } = store;
+  const a = project.automation ?? emptyAutomation();
+  const edit = (mutate: (a: Automation) => void) => update((p: Project) => {
+    const next = p.automation ?? emptyAutomation();
+    mutate(next);
+    p.automation = next;
+  });
+  return (
+    <section className="card">
+      <h3>Équipement</h3>
+      <Toggle
+        label="Équiper automatiquement les objets"
+        hint="inventory:stuff() à chaque niveau gagné : remplit les emplacements vides avec l'équipement du sac (niveau ≤ personnage, le plus haut d'abord). Ne remplace jamais un objet déjà porté."
+        checked={!!a.autoStuff}
+        onChange={(v) => edit((x) => { if (v) x.autoStuff = true; else delete x.autoStuff; })}
+      />
+      <h4 className="subhead">Équiper un objet précis à partir d'un niveau</h4>
+      <EquipEditor automation={a} onChange={edit} />
+    </section>
+  );
+}
+
 export function AutomationPanel({ store }: { store: ProjectStore }) {
   const { project, update } = store;
   const a = project.automation ?? emptyAutomation();
@@ -104,10 +128,7 @@ export function AutomationPanel({ store }: { store: ProjectStore }) {
 
   return (
     <div className="overlay-panel automation-panel">
-      <section className="card">
-        <h3>Équiper un objet à partir d'un niveau</h3>
-        <EquipEditor automation={a} onChange={edit} />
-      </section>
+      <EquipmentCard store={store} />
 
       <section className="card">
         <h3>Caractéristiques &amp; arrêt</h3>

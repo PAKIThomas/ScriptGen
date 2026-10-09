@@ -5,15 +5,21 @@ MizanBot à la souris, régler tous les paramètres documentés et générer un 
 au format des scripts « Mizan Script Creator » (voir `exemples/bucheron.lua`).
 Rien n'est mis en ligne : le serveur n'écoute que sur `127.0.0.1`.
 
-## Lancer
+## Installer et lancer sur ton Mac
 
-Prérequis : [Node.js](https://nodejs.org) 20 ou plus récent.
+Le code est sur GitHub : **https://github.com/PAKIThomas/ScriptGen**.
+
+1. Installer [Node.js](https://nodejs.org) (version LTS, 20 ou plus récent) — une seule fois.
+2. Dans le Terminal :
 
 ```bash
-git clone <ce dépôt> && cd ScriptGen
-npm install          # une seule fois
+git clone https://github.com/PAKIThomas/ScriptGen.git
+cd ScriptGen
+npm install          # une seule fois (et après chaque mise à jour)
 npm start            # ouvre http://localhost:5317 dans le navigateur
 ```
+
+Mettre à jour plus tard : `cd ScriptGen && git pull && npm install && npm start`.
 
 Sur Mac, tu peux aussi double-cliquer sur **`Lancer ScriptGen.command`** (la première fois :
 clic droit → Ouvrir, pour passer l'avertissement de macOS).
@@ -27,21 +33,22 @@ Ces réglages sont gardés dans `~/.scriptgen/config.json`. Le dossier d'export 
 
 ## Utilisation
 
-L'écran ressemble au Script Creator : la **carte en plein écran**, avec des panneaux flottants
-(réductibles avec « – ») et des onglets qui s'ouvrent par-dessus la carte.
+L'écran reprend le style du Script Creator (dépôt `limposteur/mizan_script` : or antique et émeraude,
+polices Inter et Cinzel) : la **carte en plein écran**, avec des panneaux flottants (réductibles avec « – »)
+et des onglets qui s'ouvrent par-dessus la carte.
 
 | Zone | Ce qu'on y fait |
 |---|---|
 | **Carte** | Clic sur une case = ajoute la carte au trajet. Glisser = se déplacer, molette = zoom. Carte « Calque » : choix du monde (Monde des Douze, **Incarnam**, souterrains…), fond officiel, grille, banques (B) et zaaps (Z). Survol = sous-zone et id. Hors du Monde des Douze, l'étape est écrite par son **id** (les coordonnées y sont ambiguës). |
 | **Panneau Trajets** (gauche) | `move()`, `bank()`, `phenix()`. *Trajet normal* (une boucle) ou *Trajet leveling* (un trajet par palier de niveau de métier ou de personnage), avec par palier la liste de récolte et les filtres de monstres (`config:set…`). |
-| **Panneau Étapes** (droite) | Tout récolter / tout combattre, ajout par id (intérieurs) ou havre-sac, liste réordonnable (glisser), duplication, suppression, détail de l'étape (récolte, combat, banque, coffre / maison à code, porte, cellule, sortie, Lua `custom`, fiche et image de la carte) et **vérifications** (id inconnu, étape sans sortie, coffre mal formé…). |
+| **Panneau Étapes** (droite) | Chaque ligne a ses raccourcis **Récolter** / **Combattre** (un clic, sans ouvrir l'étape), les repères DÉBUT / FIN et ✈ (carte non voisine = voyage), ⧉ dupliquer, ✕ supprimer, et **⋯** pour déplier toutes les options de l'étape (banque, coffre / maison à code, porte, cellule, sortie, régénération, Lua `custom`, fiche et image de la carte). En haut : Tout récolter / Tout combattre, ajout par id (intérieurs) ou havre-sac. Liste réordonnable en glissant ; survoler une ligne la montre sur la carte. En bas : **vérifications** (id inconnu, étape sans sortie, coffre mal formé…). |
 | **Atelier du script** (bas gauche) | Aperçu du `.lua` en direct, coloré, bouton Copier. |
 | **Barre d'outils** (haut) | Ajouter / Sélectionner, Annuler / Rétablir, 🔍 Chercher une carte (id, « x,y » ou sous-zone, avec image), Boucler (la dernière étape repart vers la première), Tout effacer. |
 
 | Onglet | Ce qu'on y fait |
 |---|---|
-| **Paramètres** | Tous les globals de l'API (`MAX_PODS`, `AUTO_DELETE`, `OPEN_BAGS`, `MIN/MAX_MONSTERS`, `FORBIDDEN/FORCE_MONSTERS`, `MONSTERS_AMOUNT`, régénération, verrous de combat, `FIGHT_KICK`, refus d'échanges / défis / guilde, modérateur, `PLANNING`, anti-blocage…), par catégorie, avec recherche. |
-| **Automatismes** | **Équiper un objet à partir d'un niveau**, investir les points de caractéristiques, arrêter le script à un niveau (personnage ou métier), réglages de combat posés par le script (style d'IA, cible, vitesse, lancers par tour, kite, défis, placement auto…), statut privé, alertes (archimonstre, combat perdu, arrêt du script), ouverture des sacs après victoire. |
+| **Paramètres** | Catégorie **Équipement** : « Équiper automatiquement les objets » (`inventory:stuff()` à chaque niveau gagné) et « Équiper un objet précis à partir d'un niveau ». Et tous les globals de l'API (`MAX_PODS`, `AUTO_DELETE`, `OPEN_BAGS`, `MIN/MAX_MONSTERS`, `FORBIDDEN/FORCE_MONSTERS`, `MONSTERS_AMOUNT`, régénération, verrous de combat, `FIGHT_KICK`, refus d'échanges / défis / guilde, modérateur, `PLANNING`, anti-blocage…), par catégorie, avec recherche. |
+| **Automatismes** | Équipement (le même bloc que dans Paramètres), investir les points de caractéristiques, arrêter le script à un niveau (personnage ou métier), réglages de combat posés par le script (style d'IA, cible, vitesse, lancers par tour, kite, défis, placement auto…), statut privé, alertes (archimonstre, combat perdu, arrêt du script), ouverture des sacs après victoire. |
 | **Banque & Phénix** | **Banques prédéfinies** (Astrub, Amakna, Bonta, Brâkmar, Otomai, Éleveurs, Pandala, Sarakech, Frigost, Sufokia) : un clic écrit `bank()` = `{ map = <banquier>, npcBank = true }`, le bot y voyage seul puis reprend le trajet. Ou un trajet de banque sur mesure. Phénix : automatique (recommandé) ou statue sur mesure. |
 | **Script & Lua brut** | En-tête, ordre des blocs, et le code « Lua brut » conservé à l'import. |
 
@@ -56,8 +63,9 @@ Ils ne font appel qu'à des fonctions de l'API. ScriptGen écrit, juste avant `m
 `-- ▶ ScriptGen : automatismes {…réglages…}` et `-- ■ ScriptGen : automatismes`, qui définit `scriptgenTick()`,
 et ajoute en tête de `move()` : `if not scriptgenTick() then return false end`.
 
-- Équipement : à chaque changement de niveau du personnage, pour chaque objet dont le niveau est atteint et qui est
-  dans le sac (`inventory:itemPosition(gid) == 63`) → `inventory:equip(gid)`.
+- Équipement : à chaque changement de niveau du personnage, pour chaque objet choisi dont le niveau est atteint et
+  qui est dans le sac (`inventory:itemPosition(gid) == 63`) → `inventory:equip(gid)` ; puis, si « Équiper
+  automatiquement » est coché, `inventory:stuff()` (emplacements vides seulement, niveau ≤ personnage, le plus haut d'abord).
 - Caractéristiques : `character:upgradeStat("vitality", character:statPoints())` dès qu'il reste des points.
 - Combat : `combat:setStyle`, `setTargetMode`, `setSpeed`, `setKiteRange`, `setMaxCasts`, `setFinishKill`,
   `setAutoPreFight`, `setChallengeMode`, `setAutoFight`, une seule fois au démarrage du script.
@@ -112,7 +120,8 @@ L'outil tourne en local mais le navigateur charge, si internet est disponible :
 
 Tout le reste est dans le dépôt et fonctionne sans internet :
 - `maps.json`, `subareas.json`, `areas.json`, `zaaps.json` : API publique DofusDB, régénérés par `npm run maps` ;
-- `worlds.json` (géométrie des calques) et `banks.json` (banques) : repris du projet Script Creator (`limposteur/mizan_script`).
+- `worlds.json` (géométrie des calques) et `banks.json` (banques) : repris du projet Script Creator (`limposteur/mizan_script`) ;
+- polices Inter et Cinzel (`public/fonts`, licence SIL Open Font License) : reprises du même projet.
 
 ## Tests
 

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CATEGORIES, PARAMS, type CategoryId, type ParamDef } from '../model/registry';
 import type { LuaValue } from '../model/types';
 import type { ProjectStore } from '../state';
+import { EquipmentCard } from './AutomationPanel';
 import { HoursPicker, ItemPicker, MonsterAmountsEditor, MonsterPicker, ResourcePicker } from './pickers';
 
 function normalize(s: string): string {
@@ -46,7 +47,7 @@ function ParamEditor({ def, value, onChange }: { def: ParamDef; value: LuaValue;
 
 export function ParamsPanel({ store }: { store: ProjectStore }) {
   const { project, update } = store;
-  const [category, setCategory] = useState<CategoryId | 'all'>('all');
+  const [category, setCategory] = useState<CategoryId | 'all' | 'equipment'>('all');
   const [query, setQuery] = useState('');
 
   const q = normalize(query.trim());
@@ -66,13 +67,17 @@ export function ParamsPanel({ store }: { store: ProjectStore }) {
             </button>
           );
         })}
+        <button type="button" className={category === 'equipment' ? 'on' : ''} onClick={() => setCategory('equipment')}>
+          Équipement{project.automation?.autoStuff || project.automation?.equip.length ? <span className="count">✓</span> : null}
+        </button>
         <p className="muted small">
           Un paramètre décoché n'est pas écrit dans le script : le bot applique alors sa valeur par défaut.
           Les réglages par palier (récolte, monstres) se font dans l'onglet Trajet.
         </p>
       </nav>
       <div className="params-list">
-        {visible.map((def) => {
+        {(category === 'equipment' || category === 'all') && !q && <EquipmentCard store={store} />}
+        {category !== 'equipment' && visible.map((def) => {
           const enabled = def.key in project.globals;
           return (
             <section key={def.key} className={`param${enabled ? ' enabled' : ''}`}>
@@ -101,7 +106,7 @@ export function ParamsPanel({ store }: { store: ProjectStore }) {
             </section>
           );
         })}
-        {visible.length === 0 && <p className="muted">Aucun paramètre ne correspond.</p>}
+        {category !== 'equipment' && visible.length === 0 && <p className="muted">Aucun paramètre ne correspond.</p>}
       </div>
     </div>
   );

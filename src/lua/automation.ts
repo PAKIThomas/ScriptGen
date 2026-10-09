@@ -26,7 +26,7 @@ function combatLines(a: Automation): string[] {
 
 export function hasAutomation(a: Automation | null | undefined): a is Automation {
   if (!a) return false;
-  return a.equip.length > 0 || !!a.autoStat || combatLines(a).length > 0 || !!a.privateStatus
+  return a.equip.length > 0 || !!a.autoStuff || !!a.autoStat || combatLines(a).length > 0 || !!a.privateStatus
     || !!a.archNotify || !!a.stopAt;
 }
 
@@ -43,7 +43,7 @@ export function generateAutomation(a: Automation): string {
     L.push(`local SCRIPTGEN_EQUIP = { ${rows.join(', ')} }`);
   }
   if (once.length) L.push('local scriptgenStarted = false');
-  if (a.equip.length) L.push('local scriptgenLevel = -1');
+  if (a.equip.length || a.autoStuff) L.push('local scriptgenLevel = -1');
   if (a.archNotify) L.push('local scriptgenArchiMap = 0');
   L.push('', 'local function scriptgenTick()');
   if (once.length) {
@@ -60,18 +60,23 @@ export function generateAutomation(a: Automation): string {
       '  end',
     );
   }
-  if (a.equip.length) {
+  if (a.equip.length || a.autoStuff) {
     L.push(
       '  local level = getCharacterLevel()',
       '  if level ~= scriptgenLevel then',
       '    scriptgenLevel = level',
-      '    for _, e in ipairs(SCRIPTGEN_EQUIP) do',
-      '      if level >= e.level and inventory:itemPosition(e.gid) == 63 then',
-      '        inventory:equip(e.gid)',
-      '      end',
-      '    end',
-      '  end',
     );
+    if (a.equip.length) {
+      L.push(
+        '    for _, e in ipairs(SCRIPTGEN_EQUIP) do',
+        '      if level >= e.level and inventory:itemPosition(e.gid) == 63 then',
+        '        inventory:equip(e.gid)',
+        '      end',
+        '    end',
+      );
+    }
+    if (a.autoStuff) L.push('    inventory:stuff()');
+    L.push('  end');
   }
   if (a.autoStat) {
     L.push(

@@ -1,19 +1,32 @@
-/* ScriptGen — thème sombre inspiré du Script Creator : carte plein écran, panneaux flottants. */
+/* ScriptGen — charte du Script Creator (dépôt limposteur/mizan_script) : or antique & émeraude,
+   Inter pour le texte, Cinzel pour les titres, carte plein écran et panneaux flottants. */
+@font-face { font-family: "Cinzel"; font-weight: 600; font-display: swap; src: url("/fonts/cinzel-600.woff2") format("woff2"); }
+@font-face { font-family: "Cinzel"; font-weight: 700; font-display: swap; src: url("/fonts/cinzel-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url("/fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-display: swap; src: url("/fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-display: swap; src: url("/fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-display: swap; src: url("/fonts/inter-600.woff2") format("woff2"); }
+
 :root {
-  --bg: #12110f;
-  --panel: rgba(26, 24, 21, 0.94);
-  --panel-solid: #1c1a17;
-  --panel-2: #26231e;
-  --panel-3: #302c25;
-  --border: #3a352c;
-  --text: #ece6da;
-  --muted: #a39b8b;
-  --accent: #e0a43b;
-  --accent-2: #f2c066;
+  --bg: #0c0b08;              /* canvas */
+  --panel: rgba(19, 17, 9, 0.95); /* panel #131109 */
+  --panel-solid: #131109;
+  --panel-2: #1a1710;         /* panel-2 */
+  --panel-3: #292317;         /* field */
+  --field-hover: #342d1d;
+  --border: rgba(228, 206, 146, 0.12); /* hairline */
+  --border-strong: rgba(228, 206, 146, 0.22);
+  --text: #ece4d2;
+  --muted: #8f8778;
+  --accent: #d9a441;          /* brand */
+  --accent-2: #ecc25a;
+  --accent-soft: rgba(217, 164, 65, 0.14);
   --accent-text: #1a1408;
-  --danger: #e0664f;
-  --ok: #3fb67e;
-  --gather: #3fb67e;
+  --danger: #d1493c;
+  --ok: #2fae74;              /* emerald */
+  --ok-soft: rgba(47, 174, 116, 0.14);
+  --violet: #a78bfa;
+  --gather: #2fae74;
   --fight: #e0564a;
   --mixed: #e08a2f;
   --bank: #d9b43f;
@@ -57,7 +70,7 @@ button {
 }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.4; cursor: default; }
-button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
 button.primary:hover:not(:disabled) { background: var(--accent-2); }
 button.danger { color: var(--danger); }
 button.small { font-size: 12px; padding: 3px 9px; }
@@ -81,7 +94,7 @@ button.on { background: rgba(224, 164, 59, 0.18); border-color: var(--accent); c
   display: flex; align-items: center; gap: 8px; padding: 8px 14px; flex-wrap: wrap;
   background: var(--panel-solid); border-bottom: 1px solid var(--border);
 }
-.brand { font-size: 17px; letter-spacing: .3px; margin-right: 6px; }
+.brand { font-family: 'Cinzel', serif; font-size: 18px; letter-spacing: .6px; margin-right: 6px; font-weight: 700; }
 .brand span { color: var(--accent); }
 .project-name { font-weight: 600; width: 190px; }
 .tabs { display: flex; gap: 4px; padding: 6px 14px; background: var(--panel-solid); border-bottom: 1px solid var(--border); }
@@ -102,7 +115,8 @@ main { flex: 1; position: relative; min-height: 0; }
 .panel { display: flex; flex-direction: column; min-height: 0; }
 .panel.collapsed { height: auto !important; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; }
-.panel-header h2 { font-size: 15px; margin: 0; font-weight: 600; }
+.panel-header h2 { font-family: 'Cinzel', serif; font-size: 15px; margin: 0; font-weight: 700; letter-spacing: .4px; }
+.panel-header h2 small { font-family: 'Inter', sans-serif; letter-spacing: 0; }
 .panel-header h2 small { font-weight: 400; margin-left: 6px; }
 .panel-body { overflow: auto; padding: 0 14px 14px; min-height: 0; flex: 1; }
 
@@ -188,7 +202,7 @@ main { flex: 1; position: relative; min-height: 0; }
 /* ── Formulaires ───────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
 .field.inline { flex-direction: row; align-items: center; margin: 4px 0; }
-.field > span { font-size: 12px; color: var(--muted); }
+.field > span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 fieldset { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin: 8px 0; }
 legend { font-size: 11px; font-weight: 700; color: var(--accent-2); padding: 0 4px; text-transform: uppercase; letter-spacing: .5px; }
@@ -232,7 +246,8 @@ table.amounts input { width: 70px; }
 .overlay-sheet { width: min(1180px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--panel-solid); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.6); overflow: hidden; }
 .overlay-panel { overflow: auto; padding: 0 18px 18px; min-height: 0; }
 .card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; margin-bottom: 12px; }
-.card h3 { margin: 2px 0 10px; font-size: 14px; color: var(--accent-2); }
+.card h3 { margin: 2px 0 10px; font-family: 'Cinzel', serif; font-size: 14px; letter-spacing: .4px; color: var(--accent-2); }
+.subhead { margin: 14px 0 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .params-panel { display: grid; grid-template-columns: 240px 1fr; gap: 14px; padding-top: 4px; }
 .params-nav { display: flex; flex-direction: column; gap: 5px; position: sticky; top: 0; align-self: start; }
 .params-nav button { text-align: left; display: flex; justify-content: space-between; }
@@ -266,3 +281,42 @@ table.amounts input { width: 70px; }
 @media (max-width: 1250px) {
   .stage { --left-w: 290px; --right-w: 330px; }
 }
+
+/* ── Lignes d'étapes (raccourcis comme le Script Creator) ─────────────── */
+.step-list { border: none; max-height: none; overflow: visible; display: flex; flex-direction: column; gap: 6px; }
+.empty-hint { border: 1px dashed var(--border-strong); border-radius: 10px; padding: 14px 10px; text-align: center; color: var(--muted); font-size: 12px; }
+.step-row { border: 1px solid var(--border); background: var(--panel-2); border-radius: 10px; padding: 7px 8px; font-size: 12px; transition: border-color .15s, box-shadow .15s; }
+.step-row:hover { border-color: var(--border-strong); }
+.step-row.first { border-color: rgba(47, 174, 116, 0.4); background: rgba(47, 174, 116, 0.05); }
+.step-row.last { border-color: rgba(217, 164, 65, 0.4); background: rgba(217, 164, 65, 0.05); }
+.step-row.first.last { background: linear-gradient(90deg, rgba(47,174,116,.1), rgba(217,164,65,.1)); }
+.step-row.active { box-shadow: 0 0 0 1px var(--accent); }
+.step-line { display: flex; align-items: center; gap: 6px; }
+.step-num { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.step-map { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums; background: none; border: none; padding: 0; color: var(--text); font-size: 12px; }
+.step-map:hover { color: var(--accent-2); }
+.edge-tag { border-radius: 4px; padding: 0 4px; font-size: 8px; font-weight: 700; }
+.edge-tag.start { background: rgba(47, 174, 116, 0.15); color: #4fd39a; }
+.edge-tag.end { background: rgba(217, 164, 65, 0.15); color: var(--accent-2); }
+.travel-tag { font-size: 10px; color: rgba(236, 194, 90, 0.85); }
+.step-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.pill { border: none; border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.05); color: var(--muted); }
+.pill:hover:not(:disabled) { color: var(--text); }
+.pill.gather.on { background: rgba(47, 174, 116, 0.2); color: #4fd39a; }
+.pill.fight.on { background: rgba(224, 86, 74, 0.2); color: #f08074; }
+.pill.more.on { background: var(--accent-soft); color: var(--accent-2); }
+.mini { border: 1px solid transparent; background: none; padding: 0 5px; font-size: 11px; color: var(--muted); opacity: .6; }
+.step-row:hover .mini { opacity: 1; }
+.mini.danger:hover { color: var(--danger); border-color: rgba(209, 73, 60, .3); }
+.step-sub { display: flex; gap: 8px; padding-left: 26px; margin-top: 2px; font-size: 10.5px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.step-extras { color: var(--accent-2); }
+.step-row .inspector { margin-top: 8px; padding: 8px 4px 2px; border-top: 1px solid var(--border); cursor: default; }
+.bulk button { display: flex; flex-direction: column; align-items: center; min-height: 46px; font-weight: 700; font-size: 12px; }
+.bulk button:first-child { border-color: rgba(47,174,116,.25); background: rgba(47,174,116,.06); }
+.bulk button:first-child.on { border-color: rgba(47,174,116,.6); background: rgba(47,174,116,.2); color: #4fd39a; }
+.bulk button:last-child { border-color: rgba(224,86,74,.25); background: rgba(224,86,74,.06); }
+.bulk button:last-child.on { border-color: rgba(224,86,74,.6); background: rgba(224,86,74,.2); color: #f08074; }
+.tabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-2); }
+.choice.on strong { color: #4fd39a; }
+.bulk small { font-size: 8px; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.bulk button.on small { color: inherit; opacity: .8; }

@@ -120,6 +120,8 @@ export interface CombatProfile {
 export interface Automation {
   /** Équiper un objet (gid) dès que le personnage atteint ce niveau. */
   equip: { level: number; gid: number }[];
+  /** inventory:stuff() à chaque niveau : remplit les emplacements libres avec le meilleur équipement du sac. */
+  autoStuff?: boolean;
   /** Investir automatiquement les points de caractéristiques. */
   autoStat?: StatName;
   combat: CombatProfile;

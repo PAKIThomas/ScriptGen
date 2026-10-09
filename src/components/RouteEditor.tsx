@@ -20,12 +20,12 @@ const ROUTE_LABELS: Record<RouteName, string> = {
   phenix: 'Résurrection — phenix()',
 };
 
-function stepBadges(step: Step): string {
+function stepBadges(step: Step, extrasOnly = false): string {
   const out: string[] = [];
-  if (step.gather) out.push('🌾');
-  if (step.forcegather) out.push('🌾⏳');
-  if (step.fight) out.push('⚔️');
-  if (step.forcefight) out.push('⚔️⏳');
+  if (step.gather && !extrasOnly) out.push('🌾');
+  if (step.forcegather) out.push('🌾 attend les repousses');
+  if (step.fight && !extrasOnly) out.push('⚔️');
+  if (step.forcefight) out.push('⚔️ attend les groupes');
   if (step.npcBank) out.push('🏦');
   if (step.lockedStorage) out.push('🔒📦');
   if (step.lockedHouse) out.push('🏠');
@@ -57,6 +57,7 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   const [pathStyle, setPathStyle] = useState<PathStyle>('coords');
   const [idInput, setIdInput] = useState('');
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [world, setWorld] = useState(MAIN_WORLD);
   const [searching, setSearching] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -70,7 +71,6 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   const bIndex = route ? route.brackets.indexOf(bracket!) : 0;
   const steps = bracket?.steps ?? [];
   const selectedIndex = steps.findIndex((s) => s.id === selectedId);
-  const selected = selectedIndex >= 0 ? steps[selectedIndex] : null;
 
   const ghostSteps = useMemo(() => {
     const out: Step[] = [];
@@ -133,7 +133,7 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   return (
     <div className={`stage${leftOpen ? ' left-open' : ''}${rightOpen ? ' right-open' : ''}`}>
       <WorldMap
-        steps={steps} ghostSteps={ghostSteps} selectedId={selectedId} mode={mapMode}
+        steps={steps} ghostSteps={ghostSteps} selectedId={hoveredId ?? selectedId} mode={mapMode}
         index={index} world={world} onWorldChange={setWorld} onCellClick={onCellClick}
       />
 
@@ -266,11 +266,13 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
             <div className="row bulk">
               <button type="button" className={allGather ? 'on' : ''} disabled={!steps.length}
                 onClick={() => editBracket((b) => { for (const s of b.steps) { if (allGather) delete s.gather; else s.gather = true; } })}>
-                🌾 Tout récolter
+                <span>🌿 Tout récolter</span>
+                <small>{allGather ? 'ACTIVÉ' : 'DÉSACTIVÉ'}</small>
               </button>
               <button type="button" className={allFight ? 'on' : ''} disabled={!steps.length}
                 onClick={() => editBracket((b) => { for (const s of b.steps) { if (allFight) delete s.fight; else s.fight = true; } })}>
-                ⚔️ Tout combattre
+                <span>⚔ Tout combattre</span>
+                <small>{allFight ? 'ACTIVÉ' : 'DÉSACTIVÉ'}</small>
               </button>
             </div>
             <div className="row">
@@ -294,9 +296,18 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
               </select>
             </label>
             <div className="step-list">
-              <ol>
-                {steps.map((s, i) => (
-                  <li
+              {steps.length === 0 && (
+                <p className="empty-hint">Clique une case de la carte pour commencer le trajet.</p>
+              )}
+              {steps.map((s, i) => {
+                const first = i === 0;
+                const last = i === steps.length - 1;
+                const here = locateStepMap(index, s.map);
+                const prev = i > 0 ? locateStepMap(index, steps[i - 1].map) : null;
+                const travel = !!(here && prev && Math.abs(here.x - prev.x) + Math.abs(here.y - prev.y) > 1);
+                const extras = stepBadges(s, true);
+                return (
+                  <div
                     key={s.id}
                     draggable
                     onDragStart={() => setDragIndex(i)}
@@ -309,30 +320,48 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
                       });
                       setDragIndex(null);
                     }}
-                    className={s.id === selectedId ? 'active' : ''}
-                    onClick={() => setSelectedId(s.id === selectedId ? null : s.id)}
+                    onMouseEnter={() => setHoveredId(s.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    className={`step-row${s.id === selectedId ? ' active' : ''}${first ? ' first' : ''}${last ? ' last' : ''}`}
                   >
-                    <span className="num">{i + 1}</span>
-                    <span className="map">{String(s.map)}</span>
-                    <span className="badges">{stepBadges(s)}</span>
-                    <span className="path muted">{pathLabel(s)}</span>
-                    <span className="actions">
-                      <button type="button" title="Dupliquer" onClick={(e) => {
-                        e.stopPropagation();
-                        editBracket((b) => { b.steps.splice(i + 1, 0, cloneStep(b.steps[i])); });
-                      }}
-                      >⧉</button>
-                      <button type="button" title="Supprimer" onClick={(e) => {
-                        e.stopPropagation();
-                        editBracket((b) => { b.steps.splice(i, 1); });
-                        if (s.id === selectedId) setSelectedId(null);
-                      }}
-                      >✕</button>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              {steps.length === 0 && <p className="muted pad">Clique une case de la carte pour commencer le trajet.</p>}
+                    <div className="step-line">
+                      <span className="step-num">{i + 1}</span>
+                      <button type="button" className="step-map" onClick={() => setSelectedId(s.id === selectedId ? null : s.id)} title="Afficher le détail">
+                        {typeof s.map === 'number' || /^\d+$/.test(String(s.map)) ? `#${s.map}` : String(s.map)}
+                      </button>
+                      {first && <span className="edge-tag start">DÉBUT</span>}
+                      {last && steps.length > 1 && <span className="edge-tag end">FIN</span>}
+                      {travel && <span className="travel-tag" title="Carte non voisine : le bot voyage (marche, zaap ou havre-sac)">✈</span>}
+                      <span className="step-actions">
+                        <button type="button" className={`pill gather${s.gather ? ' on' : ''}`}
+                          onClick={() => editStep(s.id, (x) => { if (x.gather) delete x.gather; else x.gather = true; })}>Récolter</button>
+                        <button type="button" className={`pill fight${s.fight ? ' on' : ''}`}
+                          onClick={() => editStep(s.id, (x) => { if (x.fight) delete x.fight; else x.fight = true; })}>Combattre</button>
+                        <button type="button" className={`pill more${s.id === selectedId ? ' on' : ''}`} title="Toutes les options de l'étape"
+                          onClick={() => setSelectedId(s.id === selectedId ? null : s.id)}>⋯</button>
+                        <button type="button" className="mini" title="Dupliquer" onClick={() => editBracket((b) => { b.steps.splice(i + 1, 0, cloneStep(b.steps[i])); })}>⧉</button>
+                        <button type="button" className="mini danger" title="Supprimer" onClick={() => {
+                          editBracket((b) => { b.steps.splice(i, 1); });
+                          if (s.id === selectedId) setSelectedId(null);
+                        }}>✕</button>
+                      </span>
+                    </div>
+                    <div className="step-sub">
+                      <span>{pathLabel(s)}</span>
+                      {extras && <span className="step-extras">{extras}</span>}
+                    </div>
+                    {s.id === selectedId && (
+                      <StepInspector
+                        index={index}
+                        step={s}
+                        stepIndex={i}
+                        isPhenixRoute={routeName === 'phenix'}
+                        onChange={(mutate) => editStep(s.id, mutate)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <ChecksPanel
               checks={checks}
@@ -342,15 +371,6 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
                 if (c.stepId) setSelectedId(c.stepId);
               }}
             />
-            {selected && (
-              <StepInspector
-                index={index}
-                step={selected}
-                stepIndex={selectedIndex}
-                isPhenixRoute={routeName === 'phenix'}
-                onChange={(mutate) => editStep(selected.id, mutate)}
-              />
-            )}
           </div>
         )}
       </aside>
