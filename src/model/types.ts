@@ -87,6 +87,48 @@ export interface Route {
 export interface FightEndHook {
   /** if result.won then openBags() end */
   openBagsOnWin: boolean;
+  /** if result.lost then notify("Combat perdu") end */
+  notifyOnLoss?: boolean;
+}
+
+export interface StoppedHook {
+  /** notify("Script arrêté : " .. reason) */
+  notify: boolean;
+}
+
+export type StatName = 'vitality' | 'wisdom' | 'strength' | 'intelligence' | 'chance' | 'agility';
+
+/** Réglages de combat posés par le script (module combat: de l'API), au-dessus de l'onglet Combat. */
+export interface CombatProfile {
+  autoFight?: boolean;
+  style?: 'agressif' | 'fuyard' | 'passif';
+  target?: 'proche' | 'pv' | 'loin';
+  speed?: 'Instant' | 'rapide' | 'lent';
+  kiteMin?: number;
+  kiteMax?: number;
+  maxCasts?: number;
+  finishKill?: boolean;
+  autoPreFight?: boolean;
+  challengeMode?: 'off' | 'auto';
+}
+
+/**
+ * Automatismes ajoutés en tête de move() par un petit bloc Lua généré (scriptgenTick).
+ * Uniquement des fonctions de l'API : inventory:equip / itemPosition, character:upgradeStat,
+ * combat:set…, setPrivate, map:containsArchi, notify.
+ */
+export interface Automation {
+  /** Équiper un objet (gid) dès que le personnage atteint ce niveau. */
+  equip: { level: number; gid: number }[];
+  /** Investir automatiquement les points de caractéristiques. */
+  autoStat?: StatName;
+  combat: CombatProfile;
+  /** Passer le personnage en statut privé au démarrage. */
+  privateStatus?: boolean;
+  /** Notification quand un archimonstre est sur la carte. */
+  archNotify?: boolean;
+  /** Arrêter le script à ce niveau (personnage ou métier). */
+  stopAt?: { level: number; jobId?: number };
 }
 
 /** Sections du fichier, dans l'ordre où elles sont écrites. */
@@ -96,6 +138,8 @@ export type Section =
   | { kind: 'bank' }
   | { kind: 'phenix' }
   | { kind: 'onFightEnd' }
+  | { kind: 'stopped' }
+  | { kind: 'automation' }
   | { kind: 'raw'; id: string; label: string; text: string };
 
 export type ScriptMode = 'gather' | 'fight' | 'mixed';
@@ -116,5 +160,7 @@ export interface Project {
   bank: Route | null;
   phenix: Route | null;
   onFightEnd: FightEndHook | null;
+  stopped?: StoppedHook | null;
+  automation?: Automation | null;
   sections: Section[];
 }

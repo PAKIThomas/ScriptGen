@@ -21,8 +21,42 @@ export const WORLD_NAMES: Record<number, string> = {
   [-1]: 'Intérieurs',
 };
 
+/** Géométrie d'un calque (images officielles du monde servies par DofusDB). */
+export interface WorldGeometry {
+  id: number;
+  name: string;
+  totalWidth: number;
+  totalHeight: number;
+  origineX: number;
+  origineY: number;
+  mapWidth: number;
+  mapHeight: number;
+  startScale: number;
+  visibleOnMap: boolean;
+  customScales: { name: string; x: number; y: number }[];
+}
+
+export interface Bank {
+  mapId: number;
+  zone: string;
+  x: number;
+  y: number;
+  interior: boolean;
+}
+
+export interface Zaap {
+  mapId: number;
+  x: number;
+  y: number;
+  worldMap: number;
+  subAreaId: number;
+}
+
 export interface MapIndex {
   maps: MapInfo[];
+  geometry: Map<number, WorldGeometry>;
+  banks: Bank[];
+  zaaps: Zaap[];
   byId: Map<number, MapInfo>;
   /** Clé `${worldMap}:${x},${y}` → cartes à ces coordonnées dans ce monde. */
   byCoords: Map<string, MapInfo[]>;
@@ -39,7 +73,14 @@ export function coordsIndexKey(worldMap: number, x: number, y: number): string {
   return `${worldMap}:${x},${y}`;
 }
 
-export function buildIndex(rows: Row[], subareas: [number, string, number][], areas: [number, string][]): MapIndex {
+export function buildIndex(
+  rows: Row[],
+  subareas: [number, string, number][],
+  areas: [number, string][],
+  geometry: WorldGeometry[] = [],
+  banks: Bank[] = [],
+  zaaps: Zaap[] = [],
+): MapIndex {
   const maps = rows.map(([id, x, y, worldMap, subAreaId, outdoor]) => ({
     id, x, y, worldMap, subAreaId, outdoor: outdoor === 1,
   }));
@@ -55,11 +96,15 @@ export function buildIndex(rows: Row[], subareas: [number, string, number][], ar
   }
   const sub = new Map(subareas.map(([id, name, areaId]) => [id, { name, areaId }]));
   const area = new Map(areas);
+  const geo = new Map(geometry.map((g) => [g.id, g]));
   const worlds = [...worldCount.entries()]
-    .map(([id, count]) => ({ id, count, name: WORLD_NAMES[id] ?? `Monde ${id}` }))
+    .map(([id, count]) => ({ id, count, name: geo.get(id)?.name ?? WORLD_NAMES[id] ?? `Monde ${id}` }))
     .sort((a, b) => (a.id === MAIN_WORLD ? -1 : b.id === MAIN_WORLD ? 1 : b.count - a.count));
   return {
     maps,
+    geometry: geo,
+    banks,
+    zaaps,
     byId,
     byCoords,
     worlds,
@@ -76,7 +121,10 @@ export function loadMapIndex(): Promise<MapIndex> {
     fetch('/data/maps.json').then((r) => r.json()),
     fetch('/data/subareas.json').then((r) => r.json()),
     fetch('/data/areas.json').then((r) => r.json()),
-  ]).then(([rows, subareas, areas]) => buildIndex(rows, subareas, areas));
+    fetch('/data/worlds.json').then((r) => r.json()).catch(() => []),
+    fetch('/data/banks.json').then((r) => r.json()).catch(() => []),
+    fetch('/data/zaaps.json').then((r) => r.json()).catch(() => []),
+  ]).then(([rows, subareas, areas, geometry, banks, zaaps]) => buildIndex(rows, subareas, areas, geometry, banks, zaaps));
   return loading;
 }
 
@@ -88,6 +136,11 @@ export function useMapIndex(): MapIndex | null {
     return () => { alive = false; };
   }, []);
   return index;
+}
+
+/** Tuile des images officielles du monde (même source que le Script Creator : DofusDB). */
+export function worldTileUrl(world: number, scale: string, index: number): string {
+  return `https://api.dofusdb.fr/img/worlds/${world}/${scale}/${index}.jpg`;
 }
 
 /** Image d'une carte (servie par DofusDB, chargée par le navigateur). */

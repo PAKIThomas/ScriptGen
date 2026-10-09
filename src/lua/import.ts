@@ -7,6 +7,10 @@ import type {
   Bracket, BracketConfig, FightEndHook, LevelSource, LuaValue, Project, Route, Section, Step,
 } from '../model/types';
 import { newId } from '../model/project';
+import {
+  AUTOMATION_END, AUTOMATION_START, FIGHT_END_VARIANTS, generateFightEnd, generateStopped,
+  parseAutomationBlock, TICK_CALL,
+} from './automation';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Node = any;
@@ -30,12 +34,22 @@ function fail(): never {
 }
 
 export function importLua(source: string, fileName = 'script.lua'): ImportReport {
-  const src = source.replace(/\r\n/g, '\n').replace(/^﻿/, '');
+  let src = source.replace(/\r\n/g, '\n').replace(/^﻿/, '');
+  // Bloc d'automatismes généré par ScriptGen : relu depuis ses réglages, puis masqué (remplacé par des
+  // espaces de même longueur pour garder les positions) avant l'analyse du reste du fichier.
+  let automation: ReturnType<typeof parseAutomationBlock> = null;
+  const autoStart = src.indexOf(`\n${AUTOMATION_START} `);
+  const autoEnd = autoStart >= 0 ? src.indexOf(`\n${AUTOMATION_END}`, autoStart) : -1;
+  if (autoStart >= 0 && autoEnd >= 0) {
+    const blockEnd = autoEnd + 1 + AUTOMATION_END.length;
+    automation = parseAutomationBlock(src.slice(autoStart + 1, blockEnd));
+    if (automation) src = src.slice(0, autoStart + 1) + src.slice(autoStart + 1, blockEnd).replace(/[^\n]/g, ' ') + src.slice(blockEnd);
+  }
   const ast = luaparse.parse(src, {
     comments: true, ranges: true, locations: true, luaVersion: '5.2', encodingMode: 'pseudo-latin1',
   }) as Node;
   const comments: Comment[] = ast.comments ?? [];
-  const ctx = new ImportContext(src, comments);
+  const ctx = new ImportContext(src, comments, !!automation);
 
   // En-tête : lignes de commentaire consécutives tout en haut du fichier.
   const header: string[] = [];
@@ -101,6 +115,12 @@ export function importLua(source: string, fileName = 'script.lua'): ImportReport
   if (src.slice(cursor).trim()) addRaw(cursor, src.length);
   flush();
 
+  if (automation) {
+    project.automation = automation;
+    const move = project.sections.findIndex((sec) => sec.kind === 'move');
+    project.sections.splice(move >= 0 ? move : project.sections.length, 0, { kind: 'automation' });
+  }
+
   project.mode = guessMode(project);
   return { project, rawParts };
 }
@@ -128,7 +148,7 @@ class ImportContext {
   /** Commentaires repris dans le modèle (libellés de palier, repères, fins de ligne). */
   private used = new Set<Comment>();
 
-  constructor(private src: string, private comments: Comment[]) {}
+  constructor(private src: string, private comments: Comment[], private hasTick = false) {}
 
   text(node: Node): string {
     return this.src.slice(node.range[0], node.range[1]);
@@ -158,6 +178,10 @@ class ImportContext {
         if (name === 'onFightEnd' && !project.onFightEnd) {
           project.onFightEnd = this.fightEnd(stmt);
           return 'onFightEnd';
+        }
+        if (name === 'stopped' && !project.stopped && this.text(stmt) === generateStopped({ notify: true })) {
+          project.stopped = { notify: true };
+          return 'stopped';
         }
       }
     } catch (e) {
@@ -213,7 +237,9 @@ class ImportContext {
   }
 
   routeBody(fn: Node): Route {
-    const body: Node[] = fn.body;
+    let body: Node[] = fn.body;
+    // Appel des automatismes ajouté par ScriptGen en tête de move().
+    if (this.hasTick && fn.identifier?.name === 'move' && body[0] && this.text(body[0]) === TICK_CALL) body = body.slice(1);
     const ret = body[body.length - 1];
     if (ret?.type === 'ReturnStatement') {
       const config = this.configCalls(body.slice(0, -1));
@@ -407,17 +433,9 @@ class ImportContext {
   }
 
   fightEnd(fn: Node): FightEndHook {
-    // Seule forme reconnue : if result.won then openBags() end
-    if (fn.parameters.length !== 1) fail();
-    const param = fn.parameters[0].name;
-    const body: Node[] = fn.body;
-    if (body.length !== 1 || body[0].type !== 'IfStatement' || body[0].clauses.length !== 1) fail();
-    const clause = body[0].clauses[0];
-    const c = clause.condition;
-    if (c.type !== 'MemberExpression' || c.base.type !== 'Identifier' || c.base.name !== param
-      || c.identifier.name !== 'won') fail();
-    if (clause.body.length !== 1 || this.text(clause.body[0]) !== 'openBags()') fail();
-    if (this.commentsWithin(fn.range[0], fn.range[1]).length) fail();
-    return { openBagsOnWin: true };
+    // Formes reconnues : celles que ScriptGen génère (ouvrir les sacs / prévenir en cas de défaite).
+    const text = this.text(fn);
+    const hook = FIGHT_END_VARIANTS.find((v) => generateFightEnd(v) === text);
+    return hook ? { ...hook } : fail();
   }
 }

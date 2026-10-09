@@ -1,5 +1,5 @@
-// Onglet « Trajet » : paliers à gauche, carte au centre, étapes + détail à droite.
-import { useMemo, useState } from 'react';
+// Onglet « Trajet » : la carte en plein écran, avec les panneaux flottants Trajets / Étapes.
+import React, { useMemo, useState } from 'react';
 import { JOBS } from '../data/game';
 import { locateStepMap, MAIN_WORLD, useMapIndex } from '../data/maps';
 import { checkProject, type Check } from '../model/checks';
@@ -10,7 +10,7 @@ import type { ProjectStore } from '../state';
 import { MapSearch } from './MapSearch';
 import { MonsterPicker, ResourcePicker } from './pickers';
 import { StepInspector } from './StepInspector';
-import { WorldMap } from './WorldMap';
+import { canonicalMap, WorldMap } from './WorldMap';
 
 export type RouteName = 'move' | 'bank' | 'phenix';
 
@@ -41,9 +41,16 @@ function pathLabel(step: Step): string {
   return '→ (avancé)';
 }
 
-export function RouteEditor({ store }: { store: ProjectStore }) {
+interface RouteEditorProps {
+  store: ProjectStore;
+  routeName: RouteName;
+  onRouteChange: (name: RouteName) => void;
+  /** Panneau affiché en bas à gauche (l'atelier du script, géré par App). */
+  atelier?: React.ReactNode;
+}
+
+export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteEditorProps) {
   const { project, update } = store;
-  const [routeName, setRouteName] = useState<RouteName>('move');
   const [bracketIndex, setBracketIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<'add' | 'select'>('add');
@@ -52,8 +59,11 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [world, setWorld] = useState(MAIN_WORLD);
   const [searching, setSearching] = useState(false);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
   const index = useMapIndex();
   const checks = useMemo(() => checkProject(project, index), [project, index]);
+  const selectRoute = (n: RouteName) => { onRouteChange(n); setBracketIndex(0); setSelectedId(null); };
 
   const route: Route | null = project[routeName];
   const bracket: Bracket | undefined = route?.brackets[Math.min(bracketIndex, (route?.brackets.length ?? 1) - 1)];
@@ -112,206 +122,242 @@ export function RouteEditor({ store }: { store: ProjectStore }) {
       return;
     }
     // Hors du Monde des Douze (Incarnam…), les coordonnées sont ambiguës : on écrit l'id de la carte.
-    const maps = index?.byCoords.get(`${world}:${c.x},${c.y}`);
-    if (maps?.length) addStep(maps[0].id);
+    const main = canonicalMap(index?.byCoords.get(`${world}:${c.x},${c.y}`), c.x, c.y);
+    if (main) addStep(main.id);
   };
 
-  if (!route) {
-    return (
-      <div className="route-editor empty-route">
-        <RouteTabs current={routeName} project={project} onSelect={(n) => { setRouteName(n); setBracketIndex(0); setSelectedId(null); }} />
-        <div className="empty-state">
-          {routeName === 'move' ? (
-            <p>Le move() de ce script est écrit à la main : il est conservé tel quel dans l'onglet « Lua brut ».</p>
-          ) : (
-            <p>
-              {routeName === 'bank'
-                ? 'Pas de bank() : quand les pods atteignent MAX_PODS, le bot affiche « pods pleins » et continue.'
-                : 'Pas de phenix() : à la mort, le bot ressuscite tout seul au Phénix indiqué par le jeu.'}
-            </p>
-          )}
-          <button type="button" className="primary" onClick={() => update((p) => { p[routeName] = newRoute(); })}>
-            Créer {routeName}()
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const levels = route ? route.levelSource.kind !== 'none' : false;
+  const allGather = steps.length > 0 && steps.every((s) => s.gather);
+  const allFight = steps.length > 0 && steps.every((s) => s.fight);
 
   return (
-    <div className="route-editor">
-      <aside className="brackets">
-        <RouteTabs current={routeName} project={project} onSelect={(n) => { setRouteName(n); setBracketIndex(0); setSelectedId(null); }} />
-        {routeName !== 'move' && (
-          <button type="button" className="danger small" onClick={() => update((p) => { p[routeName] = null; })}>
-            Supprimer {routeName}()
-          </button>
-        )}
+    <div className={`stage${leftOpen ? ' left-open' : ''}${rightOpen ? ' right-open' : ''}`}>
+      <WorldMap
+        steps={steps} ghostSteps={ghostSteps} selectedId={selectedId} mode={mapMode}
+        index={index} world={world} onWorldChange={setWorld} onCellClick={onCellClick}
+      />
 
-        <label className="field">
-          <span>Paliers selon le niveau</span>
-          <select
-            value={route.levelSource.kind === 'job' ? `job:${route.levelSource.jobId}` : route.levelSource.kind}
-            onChange={(e) => editRoute((r) => {
-              const v = e.target.value;
-              r.levelSource = v === 'none' ? { kind: 'none' } : v === 'character' ? { kind: 'character' }
-                : { kind: 'job', jobId: Number(v.slice(4)) };
-            })}
-          >
-            <option value="none">Aucun (un seul trajet)</option>
-            <option value="character">Niveau du personnage</option>
-            {JOBS.map((j) => <option key={j.id} value={`job:${j.id}`}>Métier : {j.name}</option>)}
-          </select>
-        </label>
+      <div className="floating toolbar-card">
+        <div className="segmented">
+          <button type="button" className={mapMode === 'add' ? 'on' : ''} onClick={() => setMapMode('add')}>＋ Ajouter</button>
+          <button type="button" className={mapMode === 'select' ? 'on' : ''} onClick={() => setMapMode('select')}>Sélectionner</button>
+        </div>
+        <button type="button" onClick={store.undo} disabled={!store.canUndo} title="Annuler (⌘Z)">↶ Annuler</button>
+        <button type="button" onClick={store.redo} disabled={!store.canRedo} title="Rétablir (⇧⌘Z)">↷ Rétablir</button>
+        <button type="button" onClick={() => setSearching(true)}>🔍 Chercher une carte</button>
+        <button
+          type="button" disabled={steps.length < 2}
+          title="La dernière étape repart vers la première"
+          onClick={() => editBracket((b) => {
+            const last = b.steps[b.steps.length - 1];
+            last.path = suggestPath(last, b.steps[0], pathStyle);
+          })}
+        >⟲ Boucler</button>
+        <button
+          type="button" className="danger" disabled={!steps.length}
+          onClick={() => { if (confirm('Effacer toutes les étapes de ce palier ?')) { editBracket((b) => { b.steps = []; }); setSelectedId(null); } }}
+        >Tout effacer</button>
+      </div>
 
-        {route.levelSource.kind !== 'none' && (
-          <ol className="bracket-list">
-            {route.brackets.map((b, i) => (
-              <li key={b.id} className={i === bIndex ? 'active' : ''} onClick={() => { setBracketIndex(i); setSelectedId(null); }}>
-                <strong>{b.name}</strong>
-                <span className="muted">
-                  {i === route.brackets.length - 1 ? ` niv. ${b.minLevel}+` : ` niv. ${b.minLevel}–${route.brackets[i + 1].minLevel - 1}`}
-                  {` · ${b.steps.length} cartes`}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-        {route.levelSource.kind !== 'none' && (
-          <div className="row">
-            <button type="button" onClick={() => {
-              editRoute((r) => {
-                const last = r.brackets[r.brackets.length - 1];
-                r.brackets.push(newBracket(`Palier ${r.brackets.length + 1}`, (last?.minLevel ?? 0) + 20));
-              });
-              setBracketIndex(route.brackets.length);
-            }}
-            >+ Palier</button>
-            <button type="button" onClick={() => editRoute((r) => { r.brackets.splice(bIndex + 1, 0, cloneBracket(r.brackets[bIndex])); })}>Dupliquer</button>
-            <button type="button" disabled={route.brackets.length <= 1} onClick={() => {
-              editRoute((r) => { r.brackets.splice(bIndex, 1); });
-              setBracketIndex(Math.max(0, bIndex - 1));
-            }}
-            >Supprimer</button>
+      <aside className={`floating panel left-panel${leftOpen ? '' : ' collapsed'}`}>
+        <header className="panel-header">
+          <h2>Trajets</h2>
+          <button type="button" className="icon-button" onClick={() => setLeftOpen(!leftOpen)} title={leftOpen ? 'Réduire' : 'Ouvrir'}>{leftOpen ? '–' : '+'}</button>
+        </header>
+        {leftOpen && (
+          <div className="panel-body">
+            <RouteTabs current={routeName} project={project} onSelect={selectRoute} />
+            {!route ? (
+              <div className="empty-state">
+                {routeName === 'move' ? (
+                  <p className="muted">Le move() de ce script est écrit à la main : il est conservé tel quel dans « Script &amp; Lua brut ».</p>
+                ) : (
+                  <p className="muted">
+                    {routeName === 'bank'
+                      ? 'Pas de bank() : à MAX_PODS, le bot affiche « pods pleins » et continue. Choisis une banque dans l\'onglet « Banque & Phénix » ou crée un trajet sur mesure.'
+                      : 'Pas de phenix() : à la mort, le bot ressuscite tout seul au Phénix indiqué par le jeu (recommandé).'}
+                  </p>
+                )}
+                <button type="button" className="primary" onClick={() => update((p) => { p[routeName] = newRoute(); })}>
+                  Créer {routeName}() sur mesure
+                </button>
+              </div>
+            ) : (
+              <>
+                {routeName !== 'move' && (
+                  <button type="button" className="danger small" onClick={() => update((p) => { p[routeName] = null; })}>
+                    Supprimer {routeName}()
+                  </button>
+                )}
+                <div className="choice-cards">
+                  <button type="button" className={!levels ? 'choice on' : 'choice'}
+                    onClick={() => editRoute((r) => { r.levelSource = { kind: 'none' }; })}>
+                    <strong>Trajet normal</strong>
+                    <span>Un seul trajet, rejoué en boucle.</span>
+                  </button>
+                  <button type="button" className={levels ? 'choice on' : 'choice'}
+                    onClick={() => editRoute((r) => { if (r.levelSource.kind === 'none') r.levelSource = { kind: 'job', jobId: 2 }; })}>
+                    <strong>Trajet leveling</strong>
+                    <span>Un trajet par palier de niveau.</span>
+                  </button>
+                </div>
+                {levels && (
+                  <label className="field">
+                    <span>Niveau utilisé pour les paliers</span>
+                    <select
+                      value={route.levelSource.kind === 'job' ? `job:${route.levelSource.jobId}` : route.levelSource.kind}
+                      onChange={(e) => editRoute((r) => {
+                        const v = e.target.value;
+                        r.levelSource = v === 'character' ? { kind: 'character' } : { kind: 'job', jobId: Number(v.slice(4)) };
+                      })}
+                    >
+                      <option value="character">Niveau du personnage</option>
+                      {JOBS.map((j) => <option key={j.id} value={`job:${j.id}`}>Métier : {j.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                {levels && (
+                  <ol className="bracket-list">
+                    {route.brackets.map((b, i) => (
+                      <li key={b.id} className={i === bIndex ? 'active' : ''} onClick={() => { setBracketIndex(i); setSelectedId(null); }}>
+                        <strong>{b.name}</strong>
+                        <span className="muted">
+                          {i === route.brackets.length - 1 ? `niv. ${b.minLevel}+` : `niv. ${b.minLevel}–${route.brackets[i + 1].minLevel - 1}`}
+                          {` · ${b.steps.length} cartes`}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {levels && (
+                  <div className="row">
+                    <button type="button" onClick={() => {
+                      editRoute((r) => {
+                        const last = r.brackets[r.brackets.length - 1];
+                        r.brackets.push(newBracket(`Étape ${r.brackets.length + 1}`, (last?.minLevel ?? 0) + 20));
+                      });
+                      setBracketIndex(route.brackets.length);
+                    }}
+                    >+ Palier</button>
+                    <button type="button" onClick={() => editRoute((r) => { r.brackets.splice(bIndex + 1, 0, cloneBracket(r.brackets[bIndex])); })}>Dupliquer</button>
+                    <button type="button" disabled={route.brackets.length <= 1} onClick={() => {
+                      editRoute((r) => { r.brackets.splice(bIndex, 1); });
+                      setBracketIndex(Math.max(0, bIndex - 1));
+                    }}
+                    >Supprimer</button>
+                  </div>
+                )}
+                {bracket && <BracketSettings bracket={bracket} withLevels={levels} onChange={editBracket} />}
+              </>
+            )}
           </div>
-        )}
-
-        {bracket && (
-          <BracketSettings
-            bracket={bracket}
-            withLevels={route.levelSource.kind !== 'none'}
-            onChange={editBracket}
-          />
         )}
       </aside>
 
-      <section className="map-column">
-        <div className="toolbar">
-          <div className="segmented">
-            <button type="button" className={mapMode === 'add' ? 'on' : ''} onClick={() => setMapMode('add')}>Ajouter</button>
-            <button type="button" className={mapMode === 'select' ? 'on' : ''} onClick={() => setMapMode('select')}>Sélectionner</button>
-          </div>
-          <label className="field inline" title="Valeur de sortie proposée quand on enchaîne deux cartes">
-            <span>Sortie auto</span>
-            <select value={pathStyle} onChange={(e) => setPathStyle(e.target.value as PathStyle)}>
-              <option value="coords">coordonnée « x,y » (comme les exemples)</option>
-              <option value="directions">direction si carte voisine</option>
-            </select>
-          </label>
-          <form className="row" onSubmit={(e) => {
-            e.preventDefault();
-            const v = idInput.trim();
-            if (v) addStep(/^\d+$/.test(v) ? Number(v) : v);
-            setIdInput('');
-          }}
-          >
-            <input value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="Intérieur : id de carte" size={16} />
-            <button type="submit">Ajouter</button>
-            <button type="button" onClick={() => addStep('havenbag')}>+ Havre-sac</button>
-          </form>
-          <button type="button" onClick={() => setSearching(true)}>🔍 Chercher une carte</button>
-          <button
-            type="button" disabled={steps.length < 2}
-            title="La dernière étape repart vers la première"
-            onClick={() => editBracket((b) => {
-              const last = b.steps[b.steps.length - 1];
-              last.path = suggestPath(last, b.steps[0], pathStyle);
-            })}
-          >Boucler</button>
-        </div>
-        <WorldMap
-          steps={steps} ghostSteps={ghostSteps} selectedId={selectedId} mode={mapMode}
-          index={index} world={world} onWorldChange={setWorld} onCellClick={onCellClick}
-        />
-        {searching && (
-          <MapSearch index={index} onClose={() => setSearching(false)} onAdd={(map) => { addStep(map); setSearching(false); }} />
-        )}
-      </section>
+      {atelier}
 
-      <aside className="steps-column">
-        <div className="step-list">
-          <div className="step-list-header">
-            <strong>{steps.length} étape(s)</strong>
-            <span className="muted">glisser pour réordonner</span>
-          </div>
-          <ol>
-            {steps.map((s, i) => (
-              <li
-                key={s.id}
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragIndex === null || dragIndex === i) return;
-                  editBracket((b) => {
-                    const [moved] = b.steps.splice(dragIndex, 1);
-                    b.steps.splice(i, 0, moved);
-                  });
-                  setDragIndex(null);
-                }}
-                className={s.id === selectedId ? 'active' : ''}
-                onClick={() => setSelectedId(s.id)}
+      <aside className={`floating panel right-panel${rightOpen ? '' : ' collapsed'}`}>
+        <header className="panel-header">
+          <h2>Étapes <span className="count">{steps.length}</span></h2>
+          <button type="button" className="icon-button" onClick={() => setRightOpen(!rightOpen)} title={rightOpen ? 'Réduire' : 'Ouvrir'}>{rightOpen ? '–' : '+'}</button>
+        </header>
+        {rightOpen && (
+          <div className="panel-body">
+            <div className="row bulk">
+              <button type="button" className={allGather ? 'on' : ''} disabled={!steps.length}
+                onClick={() => editBracket((b) => { for (const s of b.steps) { if (allGather) delete s.gather; else s.gather = true; } })}>
+                🌾 Tout récolter
+              </button>
+              <button type="button" className={allFight ? 'on' : ''} disabled={!steps.length}
+                onClick={() => editBracket((b) => { for (const s of b.steps) { if (allFight) delete s.fight; else s.fight = true; } })}>
+                ⚔️ Tout combattre
+              </button>
+            </div>
+            <div className="row">
+              <form className="row grow" onSubmit={(e) => {
+                e.preventDefault();
+                const v = idInput.trim();
+                if (v) addStep(/^\d+$/.test(v) ? Number(v) : v);
+                setIdInput('');
+              }}
               >
-                <span className="num">{i + 1}</span>
-                <span className="map">{String(s.map)}</span>
-                <span className="badges">{stepBadges(s)}</span>
-                <span className="path muted">{pathLabel(s)}</span>
-                <span className="actions">
-                  <button type="button" title="Dupliquer" onClick={(e) => {
-                    e.stopPropagation();
-                    editBracket((b) => { b.steps.splice(i + 1, 0, cloneStep(b.steps[i])); });
-                  }}
-                  >⧉</button>
-                  <button type="button" title="Supprimer" onClick={(e) => {
-                    e.stopPropagation();
-                    editBracket((b) => { b.steps.splice(i, 1); });
-                    if (s.id === selectedId) setSelectedId(null);
-                  }}
-                  >✕</button>
-                </span>
-              </li>
-            ))}
-          </ol>
-          {steps.length === 0 && <p className="muted pad">Clique sur la carte pour ajouter la première étape.</p>}
-        </div>
-        <ChecksPanel
-          checks={checks}
-          onSelect={(c) => {
-            if (c.route !== 'global' && c.route !== routeName) setRouteName(c.route);
-            if (c.bracketIndex !== undefined) setBracketIndex(c.bracketIndex);
-            if (c.stepId) setSelectedId(c.stepId);
-          }}
-        />
-        {selected && (
-          <StepInspector
-            index={index}
-            step={selected}
-            stepIndex={selectedIndex}
-            isPhenixRoute={routeName === 'phenix'}
-            onChange={(mutate) => editStep(selected.id, mutate)}
-          />
+                <input className="grow" value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="Id de carte (intérieur) ou x,y" />
+                <button type="submit">Ajouter</button>
+              </form>
+              <button type="button" onClick={() => addStep('havenbag')} title="Étape jouée dans le havre-sac">Havre-sac</button>
+            </div>
+            <label className="field inline" title="Valeur de sortie proposée quand on enchaîne deux cartes">
+              <span>Sortie auto</span>
+              <select value={pathStyle} onChange={(e) => setPathStyle(e.target.value as PathStyle)}>
+                <option value="coords">coordonnée « x,y » (comme les exemples)</option>
+                <option value="directions">direction si carte voisine</option>
+              </select>
+            </label>
+            <div className="step-list">
+              <ol>
+                {steps.map((s, i) => (
+                  <li
+                    key={s.id}
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (dragIndex === null || dragIndex === i) return;
+                      editBracket((b) => {
+                        const [moved] = b.steps.splice(dragIndex, 1);
+                        b.steps.splice(i, 0, moved);
+                      });
+                      setDragIndex(null);
+                    }}
+                    className={s.id === selectedId ? 'active' : ''}
+                    onClick={() => setSelectedId(s.id === selectedId ? null : s.id)}
+                  >
+                    <span className="num">{i + 1}</span>
+                    <span className="map">{String(s.map)}</span>
+                    <span className="badges">{stepBadges(s)}</span>
+                    <span className="path muted">{pathLabel(s)}</span>
+                    <span className="actions">
+                      <button type="button" title="Dupliquer" onClick={(e) => {
+                        e.stopPropagation();
+                        editBracket((b) => { b.steps.splice(i + 1, 0, cloneStep(b.steps[i])); });
+                      }}
+                      >⧉</button>
+                      <button type="button" title="Supprimer" onClick={(e) => {
+                        e.stopPropagation();
+                        editBracket((b) => { b.steps.splice(i, 1); });
+                        if (s.id === selectedId) setSelectedId(null);
+                      }}
+                      >✕</button>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {steps.length === 0 && <p className="muted pad">Clique une case de la carte pour commencer le trajet.</p>}
+            </div>
+            <ChecksPanel
+              checks={checks}
+              onSelect={(c) => {
+                if (c.route !== 'global' && c.route !== routeName) selectRoute(c.route);
+                if (c.bracketIndex !== undefined) setBracketIndex(c.bracketIndex);
+                if (c.stepId) setSelectedId(c.stepId);
+              }}
+            />
+            {selected && (
+              <StepInspector
+                index={index}
+                step={selected}
+                stepIndex={selectedIndex}
+                isPhenixRoute={routeName === 'phenix'}
+                onChange={(mutate) => editStep(selected.id, mutate)}
+              />
+            )}
+          </div>
         )}
       </aside>
+
+      {searching && (
+        <MapSearch index={index} onClose={() => setSearching(false)} onAdd={(map) => { addStep(map); setSearching(false); }} />
+      )}
     </div>
   );
 }

@@ -1,15 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type AppConfig } from './api';
 import { AdvancedPanel } from './components/AdvancedPanel';
+import { AutomationPanel } from './components/AutomationPanel';
+import { BankPanel } from './components/BankPanel';
 import { ParamsPanel } from './components/ParamsPanel';
-import { RouteEditor } from './components/RouteEditor';
+import { RouteEditor, type RouteName } from './components/RouteEditor';
 import { generate } from './lua/generate';
 import { importLua } from './lua/import';
 import { newProject } from './model/project';
 import type { Project, ScriptMode } from './model/types';
 import { useProjectStore } from './state';
 
-type Tab = 'route' | 'params' | 'script';
+type Tab = 'route' | 'params' | 'automation' | 'bank' | 'script';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'route', label: 'Trajet' },
+  { id: 'params', label: 'Paramètres' },
+  { id: 'automation', label: 'Automatismes' },
+  { id: 'bank', label: 'Banque & Phénix' },
+  { id: 'script', label: 'Script & Lua brut' },
+];
+
+/** Coloration minimale de l'aperçu Lua (mots-clés et commentaires). */
+function highlight(line: string): JSX.Element {
+  const comment = line.indexOf('--');
+  const code = comment >= 0 ? line.slice(0, comment) : line;
+  const parts = code.split(/(\bfunction\b|\breturn\b|\bend\b|\bif\b|\belseif\b|\belse\b|\bthen\b|\blocal\b|\btrue\b|\bfalse\b|"[^"]*")/g);
+  return (
+    <>
+      {parts.map((p, i) => (p.startsWith('"') ? <span key={i} className="tok-str">{p}</span>
+        : /^(true|false)$/.test(p) ? <span key={i} className="tok-bool">{p}</span>
+          : /^(function|return|end|if|elseif|else|then|local)$/.test(p) ? <span key={i} className="tok-kw">{p}</span> : p))}
+      {comment >= 0 && <span className="tok-comment">{line.slice(comment)}</span>}
+    </>
+  );
+}
 
 const MODES: { id: ScriptMode; label: string }[] = [
   { id: 'gather', label: 'Récolte' },
@@ -25,6 +50,7 @@ export function App() {
   const store = useProjectStore();
   const { project, update, replace } = store;
   const [tab, setTab] = useState<Tab>('route');
+  const [routeName, setRouteName] = useState<RouteName>('move');
   const [showPreview, setShowPreview] = useState(true);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [dialog, setDialog] = useState<'open' | 'settings' | null>(null);
@@ -67,7 +93,7 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <strong className="brand">ScriptGen</strong>
+        <strong className="brand">Script<span>Gen</span></strong>
         <input
           className="project-name"
           value={project.name}
@@ -89,8 +115,6 @@ export function App() {
           ))}
         </div>
         <span className="spacer" />
-        <button type="button" onClick={store.undo} disabled={!store.canUndo} title="Annuler (⌘Z)">↶</button>
-        <button type="button" onClick={store.redo} disabled={!store.canRedo} title="Rétablir (⇧⌘Z)">↷</button>
         <button type="button" onClick={() => { if (confirm('Créer un nouveau projet vide ?')) replace(newProject()); }}>Nouveau</button>
         <button type="button" onClick={() => setDialog('open')}>Ouvrir…</button>
         <button type="button" onClick={() => run(async () => {
@@ -114,38 +138,48 @@ export function App() {
           const { path } = await api.exportLua(project.fileName, lua);
           notify(`Exporté : ${path}`);
         })}
-        >Exporter</button>
+        >⬇ Exporter le .lua</button>
         <button type="button" onClick={() => run(() => api.openFolder('export').then(() => undefined))}>📁</button>
         <button type="button" onClick={() => setDialog('settings')} title="Dossiers">⚙</button>
       </header>
 
       <nav className="tabs">
-        <button type="button" className={tab === 'route' ? 'on' : ''} onClick={() => setTab('route')}>Trajet</button>
-        <button type="button" className={tab === 'params' ? 'on' : ''} onClick={() => setTab('params')}>Paramètres</button>
-        <button type="button" className={tab === 'script' ? 'on' : ''} onClick={() => setTab('script')}>Script &amp; Lua brut</button>
-        <span className="spacer" />
-        <label className="check">
-          <input type="checkbox" checked={showPreview} onChange={(e) => setShowPreview(e.target.checked)} />
-          Aperçu Lua
-        </label>
+        {TABS.map((t) => (
+          <button key={t.id} type="button" className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}</button>
+        ))}
       </nav>
 
-      <main className={showPreview ? 'with-preview' : ''}>
-        <div className="workspace">
-          {tab === 'route' && <RouteEditor store={store} />}
-          {tab === 'params' && <ParamsPanel store={store} />}
-          {tab === 'script' && <AdvancedPanel store={store} />}
-        </div>
-        {showPreview && (
-          <aside className="preview">
-            <div className="preview-header">
-              <strong>{project.fileName}</strong>
-              <span className="muted">{lua.split('\n').length - 1} lignes</span>
-              <span className="spacer" />
-              <button type="button" onClick={() => navigator.clipboard.writeText(lua).then(() => notify('Lua copié'))}>Copier</button>
+      <main>
+        <RouteEditor
+          store={store}
+          routeName={routeName}
+          onRouteChange={setRouteName}
+          atelier={(
+            <aside className={`floating panel atelier${showPreview ? '' : ' collapsed'}`}>
+              <header className="panel-header">
+                <h2>Atelier du script <small className="muted">{project.fileName} · {lua.split('\n').length - 1} lignes</small></h2>
+                <span className="row">
+                  <button type="button" onClick={() => navigator.clipboard.writeText(lua).then(() => notify('Lua copié'))}>Copier</button>
+                  <button type="button" className="icon-button" onClick={() => setShowPreview(!showPreview)}>{showPreview ? '–' : '+'}</button>
+                </span>
+              </header>
+              {showPreview && <pre className="lua">{lua.split('\n').map((l, i) => <div key={i}>{l ? highlight(l) : '\u00a0'}</div>)}</pre>}
+            </aside>
+          )}
+        />
+        {tab !== 'route' && (
+          <div className="overlay-backdrop" onClick={() => setTab('route')}>
+            <div className="overlay-sheet" onClick={(e) => e.stopPropagation()}>
+              <header className="panel-header">
+                <h2>{TABS.find((t) => t.id === tab)?.label}</h2>
+                <button type="button" className="icon-button" onClick={() => setTab('route')} title="Revenir à la carte">✕</button>
+              </header>
+              {tab === 'params' && <ParamsPanel store={store} />}
+              {tab === 'automation' && <AutomationPanel store={store} />}
+              {tab === 'bank' && <BankPanel store={store} onOpenRoute={(r) => { setRouteName(r); setTab('route'); }} />}
+              {tab === 'script' && <AdvancedPanel store={store} />}
             </div>
-            <pre>{lua}</pre>
-          </aside>
+          </div>
         )}
       </main>
 

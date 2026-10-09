@@ -54,7 +54,7 @@ export function ParamsPanel({ store }: { store: ProjectStore }) {
     && (!q || normalize(`${p.key} ${p.label} ${p.help}`).includes(q)));
 
   return (
-    <div className="params-panel">
+    <div className="overlay-panel params-panel">
       <nav className="params-nav">
         <input placeholder="Rechercher un paramètre…" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button type="button" className={category === 'all' ? 'on' : ''} onClick={() => setCategory('all')}>Tous</button>

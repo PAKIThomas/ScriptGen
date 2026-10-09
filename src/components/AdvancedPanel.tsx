@@ -9,6 +9,8 @@ const SECTION_LABELS: Record<Exclude<Section['kind'], 'raw'>, string> = {
   bank: 'bank()',
   phenix: 'phenix()',
   onFightEnd: 'onFightEnd()',
+  stopped: 'stopped()',
+  automation: 'Automatismes (scriptgenTick)',
 };
 
 export function AdvancedPanel({ store }: { store: ProjectStore }) {
@@ -21,7 +23,7 @@ export function AdvancedPanel({ store }: { store: ProjectStore }) {
   });
 
   return (
-    <div className="advanced-panel">
+    <div className="overlay-panel advanced-panel">
       <section className="card">
         <h3>En-tête du fichier</h3>
         <textarea
@@ -33,15 +35,8 @@ export function AdvancedPanel({ store }: { store: ProjectStore }) {
       </section>
 
       <section className="card">
-        <h3>Après chaque combat — onFightEnd()</h3>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={!!project.onFightEnd?.openBagsOnWin}
-            onChange={(e) => update((p) => { p.onFightEnd = e.target.checked ? { openBagsOnWin: true } : null; })}
-          />
-          Ouvrir les sacs de ressources après une victoire (<code>if result.won then openBags() end</code>)
-        </label>
+        <h3>Hooks</h3>
+        <p className="muted small">onFightEnd() et stopped() se règlent dans l'onglet « Automatismes ».</p>
       </section>
 
       <section className="card">

@@ -3,6 +3,9 @@
 // commentaire d'en-tête, globals, move() avec paliers de niveau, hooks, bank().
 import { PARAMS } from '../model/registry';
 import type { Bracket, BracketConfig, Project, Route, Section, Step } from '../model/types';
+import {
+  generateAutomation, generateFightEnd, generateStopped, hasAutomation, hasFightEnd, TICK_CALL,
+} from './automation';
 import { luaKey, luaValue } from './serialize';
 
 /** Ordre d'écriture des clés d'une étape (ordre de jeu documenté dans l'API). */
@@ -68,8 +71,9 @@ function levelExpression(route: Route): string {
   return 'getCharacterLevel()';
 }
 
-export function generateRoute(name: string, route: Route): string {
+export function generateRoute(name: string, route: Route, withTick = false): string {
   const lines = [`function ${name}()`];
+  if (withTick) lines.push(`  ${TICK_CALL}`);
   const trailingComma = name === 'move';
   const { brackets } = route;
 
@@ -106,13 +110,6 @@ export function generateGlobals(project: Project): string {
   return lines.join('\n');
 }
 
-function generateFightEnd(project: Project): string {
-  const hook = project.onFightEnd;
-  const body: string[] = [];
-  if (hook?.openBagsOnWin) body.push('  if result.won then', '    openBags()', '  end');
-  return ['function onFightEnd(result)', ...body, 'end'].join('\n');
-}
-
 /** Sections effectivement écrites : on retire celles qui sont vides et on ajoute les manquantes. */
 export function normalizeSections(project: Project): Section[] {
   const present = (s: Section): boolean => {
@@ -120,7 +117,9 @@ export function normalizeSections(project: Project): Section[] {
       case 'bank': return project.bank !== null;
       case 'move': return project.move !== null;
       case 'phenix': return project.phenix !== null;
-      case 'onFightEnd': return project.onFightEnd !== null && project.onFightEnd.openBagsOnWin;
+      case 'onFightEnd': return hasFightEnd(project.onFightEnd);
+      case 'stopped': return !!project.stopped?.notify;
+      case 'automation': return hasAutomation(project.automation) && project.move !== null;
       case 'globals': return Object.keys(project.globals).length > 0;
       default: return true;
     }
@@ -134,20 +133,28 @@ export function normalizeSections(project: Project): Section[] {
     sections.splice(index + 1, 0, section);
   };
   ensure({ kind: 'globals' }, []);
-  ensure({ kind: 'move' }, ['globals']);
+  ensure({ kind: 'automation' }, ['globals']);
+  ensure({ kind: 'move' }, ['globals', 'automation']);
   ensure({ kind: 'onFightEnd' }, ['move']);
   ensure({ kind: 'bank' }, ['move', 'onFightEnd']);
   ensure({ kind: 'phenix' }, ['move', 'onFightEnd', 'bank']);
+  ensure({ kind: 'stopped' }, ['move', 'onFightEnd', 'bank', 'phenix']);
+  // Le bloc d'automatismes doit précéder move() (fonction locale appelée par move()).
+  const auto = sections.findIndex((s) => s.kind === 'automation');
+  const move = sections.findIndex((s) => s.kind === 'move');
+  if (auto > move && move >= 0) sections.splice(move, 0, ...sections.splice(auto, 1));
   return sections;
 }
 
 function sectionText(project: Project, section: Section): string {
   switch (section.kind) {
     case 'globals': return generateGlobals(project);
-    case 'move': return project.move ? generateRoute('move', project.move) : '';
+    case 'move': return project.move ? generateRoute('move', project.move, hasAutomation(project.automation)) : '';
     case 'bank': return project.bank ? generateRoute('bank', project.bank) : '';
     case 'phenix': return project.phenix ? generateRoute('phenix', project.phenix) : '';
-    case 'onFightEnd': return generateFightEnd(project);
+    case 'onFightEnd': return project.onFightEnd ? generateFightEnd(project.onFightEnd) : '';
+    case 'stopped': return project.stopped ? generateStopped(project.stopped) : '';
+    case 'automation': return project.automation ? generateAutomation(project.automation) : '';
     case 'raw': return section.text;
   }
 }

@@ -64,3 +64,11 @@ write('public/data/subareas.json', subareas);
 
 const areas = await fetchAll('areas', ['id', 'name'], (a) => [a.id, frName(a.name)]);
 write('public/data/areas.json', areas);
+
+// Zaaps (points d'intérêt « Zaap » de DofusDB) : affichés sur la carte.
+const hints = await fetchAll('hints', ['id', 'mapId', 'x', 'y', 'worldMapId', 'subareaId', 'name'],
+  (h) => [h.id, h.mapId, h.x, h.y, h.worldMapId, h.subareaId, frName(h.name)]);
+const zaaps = hints.filter((h) => h[6] === 'Zaap')
+  .map(([, mapId, x, y, worldMap, subAreaId]) => ({ mapId, x, y, worldMap, subAreaId }))
+  .sort((a, b) => a.mapId - b.mapId);
+write('public/data/zaaps.json', zaaps);
