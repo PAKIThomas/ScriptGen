@@ -140,7 +140,7 @@ main { flex: 1; position: relative; min-height: 0; }
 
 /* ── Carte ─────────────────────────────────────────────── */
 .world-map { position: absolute; inset: 0; background: #0d0c0a; }
-.world-map svg { width: 100%; height: 100%; display: block; cursor: crosshair; user-select: none; touch-action: none; }
+.world-map > svg { width: 100%; height: 100%; display: block; cursor: crosshair; user-select: none; touch-action: none; }
 .cell { fill: transparent; stroke: none; }
 .cell.grid { stroke: var(--grid); stroke-width: 1; }
 .cell.ghost { fill: var(--grid-ghost); fill-opacity: 0.18; }
@@ -330,3 +330,30 @@ table.amounts input { width: 70px; }
 .choice.on strong { color: #4fd39a; }
 .bulk small { font-size: 8px; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
 .bulk button.on small { color: inherit; opacity: .8; }
+
+.step-notice { margin: 6px 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; background: rgba(217, 164, 65, .14); border: 1px solid var(--accent); color: var(--text); }
+
+/* ── Mines & ressources (Dofus-Map) ───────────────────── */
+.portal-marker { cursor: pointer; }
+.portal-marker circle { fill: #8a5a2b; stroke: #f3d9a4; stroke-width: 1.5; }
+.portal-marker.exit circle { fill: var(--accent-2, #2fae74); }
+.portal-marker text { fill: #fff; font-size: 11px; }
+.portal-marker:hover circle { stroke-width: 3; }
+.res-count { font-size: 10px; font-weight: 800; paint-order: stroke; stroke: rgba(0,0,0,.85); stroke-width: 3px; text-anchor: middle; }
+.tag.warn { background: rgba(217, 164, 65, .25); color: var(--text); }
+.res-chooser { border-top: 1px solid var(--border); padding-top: 6px; position: relative; }
+.res-head { display: flex; align-items: center; gap: 6px; }
+.res-head .label-caps { flex: 1; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.res-head button { padding: 2px 8px; font-size: 12px; }
+.res-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.res-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 3px; font-size: 12px; border-width: 2px; border-radius: 999px; }
+.res-icon { display: inline-block; flex-shrink: 0; background-repeat: no-repeat; }
+.res-popover {
+  position: absolute; bottom: calc(100% + 8px); right: -10px; width: 380px; max-height: 60vh; overflow: auto; z-index: 20;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.res-popover input { width: 100%; }
+.res-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.res-pick { display: flex; align-items: center; gap: 6px; padding: 4px 6px; font-size: 12px; text-align: left; }
+.res-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-pick.on { border-color: var(--accent); background: rgba(217, 164, 65, .15); }

@@ -40,7 +40,9 @@ l'état ouvert / réduit est retenu d'une fois sur l'autre.
 
 | Zone | Ce qu'on y fait |
 |---|---|
-| **Carte** | Clic sur une case = ajoute la carte au trajet. Glisser = se déplacer, molette = zoom. Carte « Calque » (bas droite) : choix du monde (Monde des Douze, **Incarnam**, souterrains…), fond officiel, grille, banques (B) et zaaps (Z). Survol = sous-zone et id. Hors du Monde des Douze, l'étape est écrite par son **id** (les coordonnées y sont ambiguës). |
+| **Carte** | Clic sur une case = ajoute la carte au trajet (**une seule fois** : recliquer une carte déjà dans le trajet la sélectionne au lieu de la dupliquer). Glisser = se déplacer, molette = zoom. Carte « Calque » (bas droite) : choix du monde (Monde des Douze, **Incarnam**, souterrains…), fond officiel, grille, banques (B) et zaaps (Z). Survol = sous-zone et id. Hors du Monde des Douze, l'étape est écrite par son **id** (les coordonnées y sont ambiguës). |
+| **Mines, grottes & souterrains** | Dans la liste « Calque » (partie *Mines, grottes & souterrains*) ou en cliquant une pastille ⛏ sur la carte : les 116 lieux souterrains de Dofus-Map, **avec leurs images**. Chaque salle se clique comme une case et s'écrit dans le script par son **id de carte**. ⛏ dans une mine = passage vers une autre grotte, ↑ = sortie (retour au calque). Une salle dont l'id n'est pas connu est signalée « id inconnu » : relève-le en jeu avec `/mapid` et ajoute-le par son id. |
+| **Ressources** (carte Calque) | « ＋ Choisir » : comme sur Dofus-Map, choisis jusqu'à 6 ressources (blé, or, frêne, fer…, rangées par métier). Chaque carte où elles poussent reçoit une pastille de couleur avec l'icône et le nombre ; le survol d'une case les liste. Marche sur le Continent, à Incarnam et dans les mines. |
 | **Panneau Trajets** (gauche) | `move()`, `bank()`, `phenix()`. *Trajet normal* (une boucle) ou *Trajet leveling* (un trajet par palier de niveau de métier ou de personnage), avec par palier la liste de récolte et les filtres de monstres (`config:set…`). |
 | **Panneau Étapes** (droite) | Chaque ligne a ses raccourcis **Récolter** / **Combattre** (un clic, sans ouvrir l'étape), les repères DÉBUT / FIN et ✈ (carte non voisine = voyage), ⧉ dupliquer, ✕ supprimer, et **⋯** pour déplier toutes les options de l'étape (banque, coffre / maison à code, porte, cellule, sortie, régénération, Lua `custom`, fiche et image de la carte). En haut : Tout récolter / Tout combattre, ajout par id (intérieurs) ou havre-sac. Liste réordonnable en glissant ; survoler une ligne la montre sur la carte. En bas : **vérifications** (id inconnu, étape sans sortie, coffre mal formé…). |
 | **Atelier du script** (bas gauche) | Aperçu du `.lua` en direct, coloré, bouton Copier. |
@@ -135,12 +137,19 @@ Pour une nouvelle **clé d'étape** : l'ajouter au type `Step` (`src/model/types
 
 L'outil tourne en local mais le navigateur charge, si internet est disponible :
 - les **images officielles du monde** (fond de carte, tous les calques) et les **images des cartes** depuis `api.dofusdb.fr`
-  (même source que le Script Creator ; case « Fond » décochable).
+  (même source que le Script Creator ; case « Fond » décochable) ;
+- les **images des mines et souterrains** depuis les tuiles publiques de `dofus-map.com`.
 
 Tout le reste est dans le dépôt et fonctionne sans internet :
 - `maps.json`, `subareas.json`, `areas.json`, `zaaps.json` : API publique DofusDB, régénérés par `npm run maps` ;
 - `worlds.json` (géométrie des calques) et `banks.json` (banques) : repris du projet Script Creator (`limposteur/mizan_script`) ;
-- polices Inter et Cinzel (`public/fonts`, licence SIL Open Font License) : reprises du même projet.
+- polices Inter et Cinzel (`public/fonts`, licence SIL Open Font License) : reprises du même projet ;
+- `resources.json` + `dofusmap-resources.png` : ressources récoltables, leurs positions (nombre par carte, Continent
+  et Incarnam) et leurs icônes, récupérées une fois sur Dofus-Map par `npm run resources` (≈ 10 min : le script
+  attend 3,5 s entre deux requêtes car Dofus-Map bloque au-delà de 100 requêtes en 5 minutes) ;
+- `mines.json` : mines, grottes et souterrains (salles, id de carte de chaque salle, ressources, entrées) tirés du
+  catalogue Dofus-Map du Script Creator (`npm run mines -- <chemin>/mizan_script/public/worldmap/data/dofus-map-groups.json`).
+  Les salles dont l'id est inconnu, ou rapproché d'une carte d'extérieur (douteux), sont écartées.
 
 ## Tests
 

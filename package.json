@@ -9,6 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "data": "node scripts/build-data.mjs",
     "maps": "node scripts/fetch-maps.mjs",
+    "resources": "node scripts/fetch-dofusmap.mjs",
+    "mines": "node scripts/build-mines.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

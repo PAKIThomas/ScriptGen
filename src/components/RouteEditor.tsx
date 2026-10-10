@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { usePanelOpen } from '../usePanelOpen';
 import { JOBS } from '../data/game';
-import { locateStepMap, MAIN_WORLD, useMapIndex } from '../data/maps';
+import { locateStepMap, MAIN_WORLD, sameMap, useMapIndex } from '../data/maps';
 import { checkProject, type Check } from '../model/checks';
 import { coordsKey, suggestPath, type PathStyle } from '../model/geo';
 import { cloneBracket, cloneStep, newBracket, newRoute, newStep } from '../model/project';
@@ -61,6 +61,7 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [world, setWorld] = useState(MAIN_WORLD);
   const [searching, setSearching] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [leftOpen, setLeftOpen] = usePanelOpen('trajets');
   const [rightOpen, setRightOpen] = usePanelOpen('etapes');
   const [toolsOpen, setToolsOpen] = usePanelOpen('outils');
@@ -100,6 +101,14 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   };
 
   const addStep = (map: string | number) => {
+    // Une carte n'apparaît qu'une fois par trajet : un nouveau clic la sélectionne au lieu de la dupliquer.
+    const existing = steps.findIndex((s) => sameMap(index, s.map, map));
+    if (existing >= 0) {
+      setSelectedId(steps[existing].id);
+      setNotice(`Carte déjà dans le trajet (étape ${existing + 1}) : sélectionnée.`);
+      window.setTimeout(() => setNotice(null), 2500);
+      return;
+    }
     const step = newStep(map, defaultFlags());
     editBracket((b) => {
       const at = selectedIndex >= 0 ? selectedIndex + 1 : b.steps.length;
@@ -112,11 +121,18 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
     setSelectedId(step.id);
   };
 
-  const onCellClick = (c: { x: number; y: number }) => {
+  const onCellClick = (c: { x: number; y: number }, mapId?: number) => {
     if (!bracket) return;
     if (mapMode === 'select') {
-      const hit = steps.find((s) => { const at = locateStepMap(index, s.map); return at && at.x === c.x && at.y === c.y; });
+      const hit = mapId !== undefined
+        ? steps.find((s) => sameMap(index, s.map, mapId))
+        : steps.find((s) => { const at = locateStepMap(index, s.map); return at && at.x === c.x && at.y === c.y; });
       setSelectedId(hit?.id ?? null);
+      return;
+    }
+    // Salle d'une mine : l'étape s'écrit par l'id de la carte.
+    if (mapId !== undefined) {
+      addStep(mapId);
       return;
     }
     if (world === MAIN_WORLD) {
@@ -318,6 +334,7 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
                 <option value="directions">direction si carte voisine</option>
               </select>
             </label>
+            {notice && <p className="step-notice">{notice}</p>}
             <div className="step-list">
               {steps.length === 0 && (
                 <p className="empty-hint">Clique une case de la carte pour commencer le trajet.</p>

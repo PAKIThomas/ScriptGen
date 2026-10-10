@@ -157,3 +157,16 @@ export function locateStepMap(index: MapIndex | null, map: string | number): { x
   const m = /^\s*(-?\d+)\s*,\s*(-?\d+)\s*$/.exec(String(map));
   return m ? { x: Number(m[1]), y: Number(m[2]), worldMap: MAIN_WORLD } : null;
 }
+
+/**
+ * Même carte ? Un « x,y » du Monde des Douze et l'id d'une carte d'extérieur à ces coordonnées désignent
+ * la même carte ; un intérieur (même x,y, autre calque) est une autre carte.
+ */
+export function sameMap(index: MapIndex | null, a: string | number, b: string | number): boolean {
+  if (String(a).trim() === String(b).trim()) return true;
+  const la = locateStepMap(index, a);
+  const lb = locateStepMap(index, b);
+  if (!la || !lb || la.x !== lb.x || la.y !== lb.y || la.worldMap !== lb.worldMap) return false;
+  if (la.info && lb.info) return la.info.id === lb.info.id;
+  return la.worldMap === MAIN_WORLD && (la.info?.outdoor ?? true) && (lb.info?.outdoor ?? true);
+}
