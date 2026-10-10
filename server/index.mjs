@@ -8,6 +8,8 @@ import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir, platform } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Anthropic from '@anthropic-ai/sdk';
+import { chat, resetConversation } from './ai.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT ?? 5317);
@@ -52,7 +54,13 @@ app.use(express.json({ limit: '20mb' }));
 
 const api = express.Router();
 
-api.get('/config', (_req, res) => res.json(loadConfig()));
+/** La clé API ne repart jamais vers le navigateur : on indique seulement si elle est réglée. */
+function publicConfig(config) {
+  const { anthropicApiKey, ...rest } = config;
+  return { ...rest, hasAnthropicKey: Boolean(anthropicApiKey || process.env.ANTHROPIC_API_KEY) };
+}
+
+api.get('/config', (_req, res) => res.json(publicConfig(loadConfig())));
 
 api.put('/config', (req, res) => {
   const current = loadConfig();
@@ -60,8 +68,40 @@ api.put('/config', (req, res) => {
   for (const key of ['exportDir', 'projectsDir']) {
     if (typeof req.body?.[key] === 'string' && req.body[key].trim()) next[key] = resolve(req.body[key].trim());
   }
+  if (typeof req.body?.anthropicApiKey === 'string') {
+    const key = req.body.anthropicApiKey.trim();
+    if (key) next.anthropicApiKey = key;
+    else delete next.anthropicApiKey;
+  }
   saveConfig(next);
-  res.json(next);
+  res.json(publicConfig(next));
+});
+
+// ── Assistant IA (Claude) ──
+api.post('/ai/chat', async (req, res) => {
+  const apiKey = loadConfig().anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'Aucune clé API Anthropic : ajoute-la dans Ouvrir… → Réglages.' });
+  const message = String(req.body?.message ?? '').trim();
+  if (!message) return res.status(400).json({ error: 'Message vide.' });
+  try {
+    res.json(await chat({
+      root, apiKey, message,
+      conversationId: String(req.body?.conversationId ?? 'default'),
+      currentPlan: req.body?.plan ?? null,
+    }));
+  } catch (e) {
+    let error = e.message;
+    if (e instanceof Anthropic.AuthenticationError) error = 'Clé API Anthropic refusée : vérifie-la dans les réglages.';
+    else if (e instanceof Anthropic.RateLimitError) error = 'Limite de requêtes Anthropic atteinte : réessaie dans un instant.';
+    else if (e instanceof Anthropic.APIConnectionError) error = 'Impossible de joindre Anthropic : vérifie la connexion internet.';
+    else if (e instanceof Anthropic.APIError) error = `Erreur de l'API Anthropic (${e.status}) : ${e.message}`;
+    res.status(502).json({ error });
+  }
+});
+
+api.post('/ai/reset', (req, res) => {
+  resetConversation(String(req.body?.conversationId ?? 'default'));
+  res.json({ ok: true });
 });
 
 api.post('/export', async (req, res) => {
@@ -134,10 +174,12 @@ if (production) {
   app.use(vite.middlewares);
 }
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   const url = `http://localhost:${PORT}`;
   console.log(`ScriptGen est prêt : ${url}`);
   console.log(`  Export .lua : ${loadConfig().exportDir}`);
   console.log(`  Projets     : ${loadConfig().projectsDir}`);
   if (!process.argv.includes('--no-open')) openInFileManager(url);
 });
+// Une demande à l'assistant peut prendre plusieurs minutes (recherches + plan).
+server.requestTimeout = 30 * 60 * 1000;

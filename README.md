@@ -24,12 +24,46 @@ Mettre à jour plus tard : `cd ScriptGen && git pull && npm install && npm start
 Sur Mac, tu peux aussi double-cliquer sur **`Lancer ScriptGen.command`** (la première fois :
 clic droit → Ouvrir, pour passer l'avertissement de macOS).
 
-Au premier lancement, clique sur **Ouvrir… → Dossiers d'export et des projets…** pour choisir :
+Au premier lancement, clique sur **Ouvrir… → Réglages (dossiers, clé IA)…** pour choisir :
 
 - le **dossier d'export** : le dossier partagé avec la VM Windows (le `.lua` y est écrit par « Exporter ») ;
 - le **dossier des projets** : où sont enregistrés les projets `.json` (« Enregistrer » / « Ouvrir… »).
 
 Ces réglages sont gardés dans `~/.scriptgen/config.json`. Le dossier d'export doit déjà exister.
+
+## Assistant IA (Claude)
+
+Bouton **✨ Assistant** (ou ⌘J, ou /) : décris le script en français, par exemple
+« monte mon personnage de 1 à 50 : de 1 à 10 à Incarnam, puis les Bouftous d'Astrub, équipe la Coiffe du Bouftou
+au niveau 20, banque d'Astrub ». L'assistant :
+
+1. cherche dans les données du jeu stockées en local (zones et leur niveau, monstres et leurs niveaux, cartes,
+   équipements, ressources Dofus-Map, banques) ;
+2. propose un **plan** (paliers de niveau, cartes, monstres visés, objets à équiper, banque…) que le serveur
+   **vérifie** : chaque id doit exister, une carte une seule fois par palier, un objet équipé au bon niveau ;
+   sinon le plan est renvoyé à l'IA pour correction ;
+3. applique le plan au projet (**⌘Z pour annuler**) et dit en quelques lignes ce qu'il a fait et ce qu'il a choisi
+   à ta place (« À valider »).
+
+Tu continues ensuite la conversation : « ajoute un palier 30–40 aux Champs de Cania », « évite les Tofus »…
+L'IA ne rédige jamais le Lua : le script est toujours écrit par le générateur de ScriptGen, avec les seules
+fonctions de l'API MizanBot. Le plan remplace le trajet `move()` (portes, cellules et Lua `custom` posés à la main
+sur les étapes ne sont pas conservés quand l'IA refait le trajet).
+
+**Mise en place** : crée une clé API sur <https://console.anthropic.com> (API Keys) et colle-la dans le panneau de
+l'assistant ou dans *Ouvrir… → Réglages*. Elle est enregistrée sur ton Mac dans `~/.scriptgen/config.json` (jamais
+dans le dépôt, jamais renvoyée au navigateur). La variable d'environnement `ANTHROPIC_API_KEY` marche aussi.
+
+**Confidentialité et coût** : c'est la seule fonction qui envoie des données à l'extérieur — ta demande, le plan du
+projet en cours et les résultats des recherches partent chez Anthropic (modèle Claude Opus 5.5). Compte quelques
+dizaines de centimes de dollar par demande, selon sa longueur (suivi sur console.anthropic.com).
+
+## Raccourcis clavier
+
+**⌘K** ouvre la palette de commandes (tout ScriptGen au clavier, avec recherche) ; **?** affiche tous les raccourcis.
+Les principaux : ⌘J ou / assistant · ⌘E exporter · ⌘S enregistrer · ⌘O ouvrir · ⌘I importer · 1 à 5 onglets ·
+A / S ajouter / sélectionner · F chercher une carte · ↑ ↓ (ou K / J) étape précédente / suivante · R récolter ·
+C combattre · D dupliquer · Suppr supprimer · [ ] palier précédent / suivant · L boucler · ⌘Z / ⇧⌘Z annuler / rétablir.
 
 ## Utilisation
 
@@ -99,7 +133,8 @@ et ajoute en tête de `move()` : `if not scriptgenTick() then return false end`.
 docs/                    Documentation MizanBot (guide + API en PDF) et listes d'identifiants
 exemples/                Scripts de référence (bucheron.lua = format cible)
 scripts/build-data.mjs   Convertit docs/*.txt en JSON (npm run data)
-server/index.mjs         Serveur local : interface, export, projets, ouverture de dossier
+server/index.mjs         Serveur local : interface, export, projets, ouverture de dossier, assistant
+server/ai.mjs            Assistant IA : outils de recherche, vérification du plan, conversation avec Claude
 src/
   model/types.ts         Modèle d'un projet (étapes, paliers, trajets, sections)
   model/registry.ts      Registre des paramètres (globals) affichés dans l'onglet Paramètres
@@ -112,6 +147,7 @@ src/
   data/                  Monstres, interactifs (JSON), métiers et ressources (Annexe du guide)
   components/            Interface React (carte, étapes, paramètres, sélecteurs)
   usePanelOpen.ts        Mémorise l'état ouvert / réduit des panneaux
+  ai/plan.ts             Plan de l'assistant ⇄ projet ScriptGen
 public/data/items.json   Objets (19 000 entrées, chargés à la demande)
 public/data/maps.json    Référentiel des 15 000 cartes (id, x, y, monde, sous-zone, extérieur) — npm run maps
 public/data/subareas.json, areas.json  Noms des sous-zones et zones
@@ -148,6 +184,9 @@ Tout le reste est dans le dépôt et fonctionne sans internet :
   Continent et à Incarnam, nombre par salle dans les mines) et leurs icônes, récupérées une fois sur Dofus-Map par
   `npm run resources` (≈ 50 min : le script attend 3,5 s entre deux requêtes car Dofus-Map bloque au-delà de
   100 requêtes en 5 minutes ; il reprend là où il s'était arrêté après une coupure ; `-- --mines-only` ne refait que les mines) ;
+- `ai/subareas.json`, `ai/monsters.json`, `ai/items.json`, `ai/item-types.json` : niveau et monstres de chaque
+  sous-zone, niveaux des monstres, niveau et type des équipements (API publique DofusDB, `npm run gamedata`) —
+  utilisés par l'assistant IA ;
 - `mines.json` : mines, grottes et souterrains (salles, id de carte de chaque salle, ressources, entrées) tirés du
   catalogue Dofus-Map du Script Creator (`npm run mines -- <chemin>/mizan_script/public/worldmap/data/dofus-map-groups.json`).
   Les salles dont l'id est inconnu, ou rapproché d'une carte d'extérieur (douteux), sont écartées.

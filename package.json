@@ -11,10 +11,12 @@
     "maps": "node scripts/fetch-maps.mjs",
     "resources": "node scripts/fetch-dofusmap.mjs",
     "mines": "node scripts/build-mines.mjs",
+    "gamedata": "node scripts/fetch-game-data.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "express": "^4.21.2",
     "luaparse": "^0.3.1",
     "react": "^18.3.1",

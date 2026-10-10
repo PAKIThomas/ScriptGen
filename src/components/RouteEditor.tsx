@@ -144,6 +144,62 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
     if (main) addStep(main.id);
   };
 
+  // ── Raccourcis clavier (et commandes de la palette ⌘K, reçues par l'événement scriptgen:command) ──
+  const runCommand = (id: string): boolean => {
+    const sel = selectedIndex >= 0 ? steps[selectedIndex] : undefined;
+    const pick = (i: number) => { if (steps[i]) setSelectedId(steps[i].id); };
+    switch (id) {
+      case 'mode-add': setMapMode('add'); return true;
+      case 'mode-select': setMapMode('select'); return true;
+      case 'search': setSearching(true); return true;
+      case 'gather': if (sel) editStep(sel.id, (x) => { if (x.gather) delete x.gather; else x.gather = true; }); return !!sel;
+      case 'fight': if (sel) editStep(sel.id, (x) => { if (x.fight) delete x.fight; else x.fight = true; }); return !!sel;
+      case 'duplicate': if (sel) editBracket((b) => { b.steps.splice(selectedIndex + 1, 0, cloneStep(b.steps[selectedIndex])); }); return !!sel;
+      case 'delete':
+        if (!sel) return false;
+        editBracket((b) => { b.steps.splice(selectedIndex, 1); });
+        pick(selectedIndex + 1 < steps.length ? selectedIndex + 1 : selectedIndex - 1);
+        return true;
+      case 'prev-step': pick(selectedIndex <= 0 ? steps.length - 1 : selectedIndex - 1); return steps.length > 0;
+      case 'next-step': pick(selectedIndex < 0 || selectedIndex >= steps.length - 1 ? 0 : selectedIndex + 1); return steps.length > 0;
+      case 'prev-bracket': if (bIndex > 0) { setBracketIndex(bIndex - 1); setSelectedId(null); } return true;
+      case 'next-bracket': if (route && bIndex < route.brackets.length - 1) { setBracketIndex(bIndex + 1); setSelectedId(null); } return true;
+      case 'loop':
+        if (steps.length < 2) return false;
+        editBracket((b) => { const last = b.steps[b.steps.length - 1]; last.path = suggestPath(last, b.steps[0], pathStyle); });
+        return true;
+      case 'unselect': setSelectedId(null); return selectedIndex >= 0;
+      default: return false;
+    }
+  };
+  React.useEffect(() => {
+    document.querySelector('.step-row.active')?.scrollIntoView({ block: 'nearest' });
+  }, [selectedId]);
+  const runCommandRef = React.useRef(runCommand);
+  runCommandRef.current = runCommand;
+  React.useEffect(() => {
+    const KEYS: Record<string, string> = {
+      a: 'mode-add', s: 'mode-select', f: 'search', r: 'gather', c: 'fight', d: 'duplicate', l: 'loop',
+      Delete: 'delete', Backspace: 'delete', ArrowUp: 'prev-step', ArrowDown: 'next-step', k: 'prev-step', j: 'next-step',
+      '[': 'prev-bracket', ']': 'next-bracket', Escape: 'unselect',
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (document.querySelector('.dialog-backdrop, .overlay-backdrop, .palette-backdrop')) return;
+      const id = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      if (id && runCommandRef.current(id)) e.preventDefault();
+    };
+    const onCommand = (e: Event) => { runCommandRef.current((e as CustomEvent<string>).detail); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scriptgen:command', onCommand);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scriptgen:command', onCommand);
+    };
+  }, []);
+
   const levels = route ? route.levelSource.kind !== 'none' : false;
   const allGather = steps.length > 0 && steps.every((s) => s.gather);
   const allFight = steps.length > 0 && steps.every((s) => s.fight);

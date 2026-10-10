@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type AppConfig } from './api';
 import { AdvancedPanel } from './components/AdvancedPanel';
+import { AssistantPanel, type AssistantHandle } from './components/AssistantPanel';
+import { CommandPalette, ShortcutHelp, type Command } from './components/CommandPalette';
 import { AutomationPanel } from './components/AutomationPanel';
 import { BankPanel } from './components/BankPanel';
 import { ParamsPanel } from './components/ParamsPanel';
@@ -55,7 +57,14 @@ export function App() {
   const [showPreview, setShowPreview] = usePanelOpen('atelier');
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [dialog, setDialog] = useState<'open' | 'settings' | null>(null);
+  const [overlay, setOverlay] = useState<'palette' | 'help' | null>(null);
+  const [assistantOpen, setAssistantOpen] = usePanelOpen('assistant', false);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const assistant = useRef<AssistantHandle>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const refreshConfig = () => api.getConfig().then((c) => setHasKey(!!c.hasAnthropicKey)).catch(() => setHasKey(null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshConfig(); }, []);
 
   const lua = useMemo(() => {
     try {
@@ -77,6 +86,75 @@ export function App() {
       notify((e as Error).message, true);
     }
   };
+
+  const saveProject = () => run(async () => {
+    const { path } = await api.saveProject(projectFileName(project), project);
+    notify(`Projet enregistré : ${path}`);
+  });
+  const exportProject = () => run(async () => {
+    const { path } = await api.exportLua(project.fileName, lua);
+    notify(`Exporté : ${path}`);
+  });
+  const openAssistant = () => {
+    setAssistantOpen(true);
+    window.setTimeout(() => assistant.current?.focus(), 0);
+  };
+  const routeCommand = (id: string) => window.dispatchEvent(new CustomEvent('scriptgen:command', { detail: id }));
+
+  const commands: Command[] = [
+    { id: 'assistant', group: 'Assistant', label: 'Ouvrir l\'assistant IA', keys: '⌘J ou /', run: openAssistant },
+    { id: 'export', group: 'Fichier', label: 'Exporter le .lua', keys: '⌘E', run: exportProject },
+    { id: 'save', group: 'Fichier', label: 'Enregistrer le projet', keys: '⌘S', run: saveProject },
+    { id: 'open', group: 'Fichier', label: 'Ouvrir un projet…', keys: '⌘O', run: () => setDialog('open') },
+    { id: 'import', group: 'Fichier', label: 'Importer un .lua', keys: '⌘I', run: () => fileInput.current?.click() },
+    { id: 'new', group: 'Fichier', label: 'Nouveau projet', run: () => { if (confirm('Créer un nouveau projet vide ?')) replace(newProject()); } },
+    { id: 'copy', group: 'Fichier', label: 'Copier le Lua', run: () => navigator.clipboard.writeText(lua).then(() => notify('Lua copié')) },
+    { id: 'settings', group: 'Fichier', label: 'Réglages (dossiers, clé IA)', run: () => setDialog('settings') },
+    ...TABS.map((t, i) => ({ id: `tab-${t.id}`, group: 'Onglets', label: t.label, keys: String(i + 1), run: () => setTab(t.id) })),
+    { id: 'route-move', group: 'Trajets', label: 'Trajet principal — move()', run: () => { setRouteName('move'); setTab('route'); } },
+    { id: 'route-bank', group: 'Trajets', label: 'Retour banque — bank()', run: () => { setRouteName('bank'); setTab('route'); } },
+    { id: 'route-phenix', group: 'Trajets', label: 'Résurrection — phenix()', run: () => { setRouteName('phenix'); setTab('route'); } },
+    { id: 'mode-add', group: 'Carte', label: 'Mode Ajouter', keys: 'A', run: () => routeCommand('mode-add') },
+    { id: 'mode-select', group: 'Carte', label: 'Mode Sélectionner', keys: 'S', run: () => routeCommand('mode-select') },
+    { id: 'search', group: 'Carte', label: 'Chercher une carte', keys: 'F', run: () => routeCommand('search') },
+    { id: 'loop', group: 'Carte', label: 'Boucler (la dernière étape repart vers la première)', keys: 'L', run: () => routeCommand('loop') },
+    { id: 'next-step', group: 'Étapes', label: 'Étape suivante', keys: '↓ ou J', run: () => routeCommand('next-step') },
+    { id: 'prev-step', group: 'Étapes', label: 'Étape précédente', keys: '↑ ou K', run: () => routeCommand('prev-step') },
+    { id: 'gather', group: 'Étapes', label: 'Récolter oui / non (étape choisie)', keys: 'R', run: () => routeCommand('gather') },
+    { id: 'fight', group: 'Étapes', label: 'Combattre oui / non (étape choisie)', keys: 'C', run: () => routeCommand('fight') },
+    { id: 'duplicate', group: 'Étapes', label: 'Dupliquer l\'étape choisie', keys: 'D', run: () => routeCommand('duplicate') },
+    { id: 'delete', group: 'Étapes', label: 'Supprimer l\'étape choisie', keys: 'Suppr', run: () => routeCommand('delete') },
+    { id: 'next-bracket', group: 'Paliers', label: 'Palier suivant', keys: ']', run: () => routeCommand('next-bracket') },
+    { id: 'prev-bracket', group: 'Paliers', label: 'Palier précédent', keys: '[', run: () => routeCommand('prev-bracket') },
+    { id: 'undo', group: 'Édition', label: 'Annuler', keys: '⌘Z', run: store.undo },
+    { id: 'redo', group: 'Édition', label: 'Rétablir', keys: '⇧⌘Z', run: store.redo },
+    { id: 'palette', group: 'Aide', label: 'Palette de commandes', keys: '⌘K', run: () => setOverlay('palette') },
+    { id: 'help', group: 'Aide', label: 'Liste des raccourcis', keys: '?', run: () => setOverlay('help') },
+  ];
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
+
+  useEffect(() => {
+    const byId = (id: string) => commandsRef.current.find((c) => c.id === id)?.run();
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && !e.shiftKey && !e.altKey) {
+        const map: Record<string, string> = { k: 'palette', j: 'assistant', s: 'save', e: 'export', o: 'open', i: 'import' };
+        if (map[k]) { e.preventDefault(); byId(map[k]); }
+        return;
+      }
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === 'Escape') { setOverlay(null); setDialog(null); return; }
+      if (e.altKey || document.querySelector('.dialog-backdrop, .palette-backdrop')) return;
+      if (e.key === '/') { e.preventDefault(); byId('assistant'); }
+      else if (e.key === '?') { e.preventDefault(); byId('help'); }
+      else if (/^[1-5]$/.test(e.key)) byId(`tab-${TABS[Number(e.key) - 1].id}`);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const importText = (text: string, fileName: string) => {
     try {
@@ -117,14 +195,12 @@ export function App() {
           ))}
         </div>
         <span className="spacer" />
+        <button type="button" className={`assistant-button${assistantOpen ? ' on' : ''}`} onClick={() => (assistantOpen ? setAssistantOpen(false) : openAssistant())} title="Assistant IA (⌘J ou /)">✨ Assistant</button>
+        <button type="button" className="kbd-button" onClick={() => setOverlay('palette')} title="Palette de commandes">⌘K</button>
         <button type="button" onClick={() => { if (confirm('Créer un nouveau projet vide ?')) replace(newProject()); }}>Nouveau</button>
-        <button type="button" onClick={() => setDialog('open')}>Ouvrir…</button>
-        <button type="button" onClick={() => run(async () => {
-          const { path } = await api.saveProject(projectFileName(project), project);
-          notify(`Projet enregistré : ${path}`);
-        })}
-        >Enregistrer</button>
-        <button type="button" onClick={() => fileInput.current?.click()}>Importer .lua</button>
+        <button type="button" onClick={() => setDialog('open')} title="⌘O">Ouvrir…</button>
+        <button type="button" onClick={saveProject} title="⌘S">Enregistrer</button>
+        <button type="button" onClick={() => fileInput.current?.click()} title="⌘I">Importer .lua</button>
         <input
           ref={fileInput}
           type="file"
@@ -136,11 +212,7 @@ export function App() {
             if (file) importText(await file.text(), file.name);
           }}
         />
-        <button type="button" className="primary" onClick={() => run(async () => {
-          const { path } = await api.exportLua(project.fileName, lua);
-          notify(`Exporté : ${path}`);
-        })}
-        >⬇ Exporter le .lua</button>
+        <button type="button" className="primary" onClick={exportProject} title="⌘E">⬇ Exporter le .lua</button>
         <button type="button" onClick={() => run(() => api.openFolder('export').then(() => undefined))} title="Ouvrir le dossier d'export">📁</button>
       </header>
 
@@ -168,6 +240,16 @@ export function App() {
             </aside>
           )}
         />
+        {assistantOpen && (
+          <AssistantPanel
+            ref={assistant}
+            store={store}
+            hasKey={hasKey}
+            onKeySaved={() => { refreshConfig(); notify('Clé API enregistrée sur ce Mac.'); }}
+            onClose={() => setAssistantOpen(false)}
+            onApplied={(text) => { setTab('route'); setRouteName('move'); notify(text); }}
+          />
+        )}
         {tab !== 'route' && (
           <div className="overlay-backdrop" onClick={() => setTab('route')}>
             <div className="overlay-sheet" onClick={(e) => e.stopPropagation()}>
@@ -184,6 +266,8 @@ export function App() {
         )}
       </main>
 
+      {overlay === 'palette' && <CommandPalette commands={commands} onClose={() => setOverlay(null)} />}
+      {overlay === 'help' && <ShortcutHelp commands={commands} onClose={() => setOverlay(null)} />}
       {message && <div className={`toast${message.error ? ' error' : ''}`} onClick={() => setMessage(null)}>{message.text}</div>}
       {dialog === 'open' && (
         <OpenDialog
@@ -194,7 +278,7 @@ export function App() {
           onSettings={() => setDialog('settings')}
         />
       )}
-      {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} onSaved={() => notify('Dossiers enregistrés')} onError={(m) => notify(m, true)} />}
+      {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} onSaved={() => { refreshConfig(); notify('Réglages enregistrés'); }} onError={(m) => notify(m, true)} />}
     </div>
   );
 }
@@ -254,7 +338,7 @@ function OpenDialog({ onClose, onProject, onExample, onError, onSettings }: {
           ))}
         </ul>
         <div className="row end">
-          <button type="button" onClick={onSettings}>Dossiers d'export et des projets…</button>
+          <button type="button" onClick={onSettings}>Réglages (dossiers, clé IA)…</button>
           <button type="button" onClick={() => api.openFolder('projects').catch((e) => onError(e.message))}>Ouvrir le dossier des projets</button>
           <button type="button" onClick={onClose}>Fermer</button>
         </div>
@@ -265,17 +349,18 @@ function OpenDialog({ onClose, onProject, onExample, onError, onSettings }: {
 
 function SettingsDialog({ onClose, onSaved, onError }: { onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [apiKey, setApiKey] = useState('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { api.getConfig().then(setConfig).catch((e) => onError(e.message)); }, []);
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
-        <h2>Dossiers</h2>
+        <h2>Réglages</h2>
         {!config ? <p className="muted">Chargement…</p> : (
           <form onSubmit={async (e) => {
             e.preventDefault();
             try {
-              setConfig(await api.setConfig(config));
+              setConfig(await api.setConfig({ exportDir: config.exportDir, projectsDir: config.projectsDir, ...(apiKey.trim() ? { anthropicApiKey: apiKey.trim() } : {}) }));
               onSaved();
               onClose();
             } catch (err) {
@@ -291,6 +376,13 @@ function SettingsDialog({ onClose, onSaved, onError }: { onClose: () => void; on
               <span>Dossier des projets (.json)</span>
               <input className="wide" value={config.projectsDir} onChange={(e) => setConfig({ ...config, projectsDir: e.target.value })} />
             </label>
+            <label className="field">
+              <span>Clé API Anthropic (assistant IA) — {config.hasAnthropicKey ? 'déjà réglée ; en coller une autre pour la remplacer' : 'pas encore réglée'}</span>
+              <input className="wide" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-ant-…" />
+            </label>
+            {config.hasAnthropicKey && (
+              <button type="button" className="small danger" onClick={async () => { setConfig(await api.setConfig({ anthropicApiKey: '' })); onSaved(); }}>Supprimer la clé</button>
+            )}
             <p className="muted small">Dans MizanBot (onglet Lua → Charger, ou bibliothèque du Planning), ouvre le .lua depuis ce dossier partagé.
               Un script ajouté au Planning est relu depuis le fichier au début de chaque plage.</p>
             <div className="row end">

@@ -357,3 +357,44 @@ table.amounts input { width: 70px; }
 .res-pick { display: flex; align-items: center; gap: 6px; padding: 4px 6px; font-size: 12px; text-align: left; }
 .res-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res-pick.on { border-color: var(--accent); background: rgba(217, 164, 65, .15); }
+
+/* ── Assistant IA ─────────────────────────────────────── */
+.assistant-button { border-color: var(--accent); color: var(--accent-2); }
+.assistant-button.on { background: var(--accent-soft); }
+.kbd-button { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--muted); }
+.assistant-panel { z-index: 9; top: 12px; right: 12px; bottom: 12px; width: min(440px, calc(100% - 24px)); display: flex; flex-direction: column; }
+.assistant-key { margin: 0 14px 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.assistant-key p { margin: 0 0 8px; }
+.assistant-messages { flex: 1; overflow: auto; padding: 4px 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+.assistant-empty { display: flex; flex-direction: column; gap: 6px; }
+.assistant-example { text-align: left; font-size: 12.5px; line-height: 1.4; padding: 8px 10px; white-space: normal; }
+.bubble { border-radius: 12px; padding: 9px 12px; font-size: 13px; line-height: 1.5; border: 1px solid var(--border); background: var(--panel-2); }
+.bubble.user { align-self: flex-end; max-width: 88%; background: var(--accent-soft); border-color: rgba(217, 164, 65, .35); }
+.bubble.error { border-color: var(--danger); color: #ffb4ab; }
+.bubble.pending { color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.bubble-text { white-space: pre-wrap; }
+.bubble-plan { margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: var(--ok-soft); color: #9be3c0; font-size: 12px; }
+.bubble-validate { margin-top: 8px; font-size: 12px; }
+.bubble-validate ul, .bubble-activity ul { margin: 4px 0 0; padding-left: 18px; }
+.bubble-activity { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.bubble-activity code { font-size: 11px; word-break: break-all; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--accent); animation: spin .8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.assistant-input { padding: 10px 14px 14px; border-top: 1px solid var(--border); }
+.assistant-input textarea { width: 100%; resize: vertical; min-height: 64px; }
+.assistant-input .row.end { margin-top: 6px; }
+.grow { flex: 1; min-width: 0; }
+
+/* ── Palette de commandes & raccourcis ────────────────── */
+.palette-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .45); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+.palette { width: min(620px, calc(100% - 32px)); background: var(--panel-solid); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); overflow: hidden; }
+.palette > input { width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 14px 16px; font-size: 15px; background: transparent; }
+.palette ul { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow: auto; }
+.palette li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.palette li .small { width: 78px; flex-shrink: 0; }
+.palette li.active { background: var(--accent-soft); }
+kbd { font-family: 'Inter', sans-serif; font-size: 11px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--panel-3); color: var(--text); white-space: nowrap; }
+.palette.help { padding: 16px 18px; }
+.palette.help h2 { font-family: 'Cinzel', serif; margin: 0 0 6px; font-size: 18px; }
+.help-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 24px; }
+.help-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 13px; }

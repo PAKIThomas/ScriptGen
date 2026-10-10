@@ -1,8 +1,18 @@
 // Appels au serveur local (server/index.mjs).
 
+import type { Plan } from './ai/plan';
+
 export interface AppConfig {
   exportDir: string;
   projectsDir: string;
+  /** La clé elle-même ne revient jamais du serveur. */
+  hasAnthropicKey?: boolean;
+}
+
+export interface AiReply {
+  reply: string;
+  plan: Plan | null;
+  activity: string[];
 }
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -19,7 +29,10 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 
 export const api = {
   getConfig: () => call<AppConfig>('GET', '/api/config'),
-  setConfig: (config: Partial<AppConfig>) => call<AppConfig>('PUT', '/api/config', config),
+  setConfig: (config: Partial<AppConfig> & { anthropicApiKey?: string }) => call<AppConfig>('PUT', '/api/config', config),
+  aiChat: (conversationId: string, message: string, plan: Plan | null) =>
+    call<AiReply>('POST', '/api/ai/chat', { conversationId, message, plan }),
+  aiReset: (conversationId: string) => call<{ ok: true }>('POST', '/api/ai/reset', { conversationId }),
   exportLua: (fileName: string, content: string) => call<{ path: string }>('POST', '/api/export', { fileName, content }),
   openFolder: (which: 'export' | 'projects') => call<{ ok: true }>('POST', '/api/open-folder', { which }),
   listProjects: () => call<{ name: string; modified: number }[]>('GET', '/api/projects'),
