@@ -91,12 +91,16 @@ button.on { background: rgba(224, 164, 59, 0.18); border-color: var(--accent); c
 /* ── Structure ─────────────────────────────────────────── */
 .app { display: flex; flex-direction: column; height: 100vh; }
 .topbar {
-  display: flex; align-items: center; gap: 8px; padding: 8px 14px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; flex-wrap: nowrap; overflow-x: auto;
   background: var(--panel-solid); border-bottom: 1px solid var(--border);
 }
+.topbar > * { flex-shrink: 0; }
+.topbar > .project-name, .topbar > .field { flex-shrink: 1; min-width: 0; }
+.topbar > .field input { min-width: 80px; width: 100%; }
+.topbar > .spacer { flex-shrink: 1; }
 .brand { font-family: 'Cinzel', serif; font-size: 18px; letter-spacing: .6px; margin-right: 6px; font-weight: 700; }
 .brand span { color: var(--accent); }
-.project-name { font-weight: 600; width: 190px; }
+.project-name { font-weight: 600; width: 190px; min-width: 90px; }
 .tabs { display: flex; gap: 4px; padding: 6px 14px; background: var(--panel-solid); border-bottom: 1px solid var(--border); }
 .tabs button { border-radius: 999px; padding: 5px 14px; }
 .segmented { display: inline-flex; }
@@ -105,7 +109,7 @@ button.on { background: rgba(224, 164, 59, 0.18); border-color: var(--accent); c
 .segmented button:last-child { border-radius: 0 9px 9px 0; }
 
 main { flex: 1; position: relative; min-height: 0; }
-.stage { position: absolute; inset: 0; --left-w: 330px; --right-w: 380px; }
+.stage { position: absolute; inset: 0; --left-w: 330px; --right-w: 380px; --layer-w: 270px; }
 .floating {
   position: absolute; z-index: 5;
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
@@ -125,10 +129,13 @@ main { flex: 1; position: relative; min-height: 0; }
 .atelier.collapsed { height: auto; }
 .right-panel { top: 12px; right: 12px; bottom: 12px; width: var(--right-w); }
 .right-panel.collapsed { bottom: auto; }
+.toolbar-zone {
+  position: absolute; z-index: 5; top: 12px; left: calc(var(--left-w) + 24px); right: calc(var(--right-w) + 24px);
+  display: flex; justify-content: center; pointer-events: none;
+}
 .toolbar-card {
-  top: 12px; left: 50%; transform: translateX(-50%);
+  position: static; pointer-events: auto;
   display: flex; gap: 6px; align-items: center; padding: 7px 9px; flex-wrap: wrap; justify-content: center;
-  max-width: calc(100% - var(--left-w) - var(--right-w) - 72px);
 }
 
 /* ── Carte ─────────────────────────────────────────────── */
@@ -150,8 +157,11 @@ main { flex: 1; position: relative; min-height: 0; }
 .bank-marker text { fill: #2a1f05; }
 .zaap-marker circle { fill: #4fb3e0; }
 .zaap-marker text { fill: #06222e; }
-.map-layer-card { top: 68px; left: calc(var(--left-w) + 24px); padding: 10px 12px; width: 250px; display: flex; flex-direction: column; gap: 6px; }
-.stage:not(.left-open) .map-layer-card { left: calc(var(--left-w) + 24px); }
+.map-layer-card { bottom: 56px; right: calc(var(--right-w) + 24px); padding: 8px 10px; width: var(--layer-w); display: flex; flex-direction: column; gap: 6px; }
+.layer-head { display: flex; align-items: center; gap: 6px; }
+.layer-head .field { flex: 1; min-width: 0; }
+.layer-head select { flex: 1; min-width: 0; }
+.field.preamble { margin-top: 10px; }
 .map-layer-card input:not([type]) , .map-layer-card form input { width: 100%; }
 .map-layer-card input[type=range] { width: 100%; }
 .map-hover-card { bottom: 12px; right: calc(var(--right-w) + 24px); padding: 7px 12px; display: flex; gap: 10px; align-items: center; font-size: 12px; }

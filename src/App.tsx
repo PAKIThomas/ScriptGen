@@ -10,6 +10,7 @@ import { importLua } from './lua/import';
 import { newProject } from './model/project';
 import type { Project, ScriptMode } from './model/types';
 import { useProjectStore } from './state';
+import { usePanelOpen } from './usePanelOpen';
 
 type Tab = 'route' | 'params' | 'automation' | 'bank' | 'script';
 
@@ -51,7 +52,7 @@ export function App() {
   const { project, update, replace } = store;
   const [tab, setTab] = useState<Tab>('route');
   const [routeName, setRouteName] = useState<RouteName>('move');
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, setShowPreview] = usePanelOpen('atelier');
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [dialog, setDialog] = useState<'open' | 'settings' | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -66,7 +67,7 @@ export function App() {
 
   const notify = (text: string, error = false) => {
     setMessage({ text, error });
-    window.setTimeout(() => setMessage((m) => (m?.text === text ? null : m)), error ? 8000 : 4000);
+    window.setTimeout(() => setMessage((m) => (m?.text === text ? null : m)), error || text.length > 120 ? 10000 : 4000);
   };
 
   const run = async (action: () => Promise<void>) => {
@@ -79,12 +80,13 @@ export function App() {
 
   const importText = (text: string, fileName: string) => {
     try {
-      const { project: p, rawParts } = importLua(text, fileName);
+      const { project: p, rawParts, translated } = importLua(text, fileName);
       replace(p);
       setTab('route');
-      notify(rawParts.length
+      const kept = rawParts.length
         ? `${fileName} importé. Conservé en Lua brut : ${rawParts.join(', ')}.`
-        : `${fileName} importé entièrement dans l'éditeur.`);
+        : `${fileName} importé entièrement dans l'éditeur.`;
+      notify(translated.length ? `${kept} Converti (script SnowBot) : ${translated.join(' · ')}.` : kept);
     } catch (e) {
       notify(`Import impossible (${fileName}) : ${(e as Error).message}`, true);
     }
@@ -139,8 +141,7 @@ export function App() {
           notify(`Exporté : ${path}`);
         })}
         >⬇ Exporter le .lua</button>
-        <button type="button" onClick={() => run(() => api.openFolder('export').then(() => undefined))}>📁</button>
-        <button type="button" onClick={() => setDialog('settings')} title="Dossiers">⚙</button>
+        <button type="button" onClick={() => run(() => api.openFolder('export').then(() => undefined))} title="Ouvrir le dossier d'export">📁</button>
       </header>
 
       <nav className="tabs">
@@ -190,6 +191,7 @@ export function App() {
           onProject={(p) => { replace(p); setDialog(null); notify(`Projet « ${p.name} » ouvert`); }}
           onExample={(text, name) => { importText(text, name); setDialog(null); }}
           onError={(m) => notify(m, true)}
+          onSettings={() => setDialog('settings')}
         />
       )}
       {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} onSaved={() => notify('Dossiers enregistrés')} onError={(m) => notify(m, true)} />}
@@ -197,8 +199,9 @@ export function App() {
   );
 }
 
-function OpenDialog({ onClose, onProject, onExample, onError }: {
+function OpenDialog({ onClose, onProject, onExample, onError, onSettings }: {
   onClose: () => void;
+  onSettings: () => void;
   onProject: (p: Project) => void;
   onExample: (text: string, name: string) => void;
   onError: (message: string) => void;
@@ -251,6 +254,7 @@ function OpenDialog({ onClose, onProject, onExample, onError }: {
           ))}
         </ul>
         <div className="row end">
+          <button type="button" onClick={onSettings}>Dossiers d'export et des projets…</button>
           <button type="button" onClick={() => api.openFolder('projects').catch((e) => onError(e.message))}>Ouvrir le dossier des projets</button>
           <button type="button" onClick={onClose}>Fermer</button>
         </div>

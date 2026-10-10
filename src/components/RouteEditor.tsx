@@ -1,5 +1,6 @@
 // Onglet « Trajet » : la carte en plein écran, avec les panneaux flottants Trajets / Étapes.
 import React, { useMemo, useState } from 'react';
+import { usePanelOpen } from '../usePanelOpen';
 import { JOBS } from '../data/game';
 import { locateStepMap, MAIN_WORLD, useMapIndex } from '../data/maps';
 import { checkProject, type Check } from '../model/checks';
@@ -60,8 +61,9 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [world, setWorld] = useState(MAIN_WORLD);
   const [searching, setSearching] = useState(false);
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = usePanelOpen('trajets');
+  const [rightOpen, setRightOpen] = usePanelOpen('etapes');
+  const [toolsOpen, setToolsOpen] = usePanelOpen('outils');
   const index = useMapIndex();
   const checks = useMemo(() => checkProject(project, index), [project, index]);
   const selectRoute = (n: RouteName) => { onRouteChange(n); setBracketIndex(0); setSelectedId(null); };
@@ -137,26 +139,33 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
         index={index} world={world} onWorldChange={setWorld} onCellClick={onCellClick}
       />
 
-      <div className="floating toolbar-card">
-        <div className="segmented">
-          <button type="button" className={mapMode === 'add' ? 'on' : ''} onClick={() => setMapMode('add')}>＋ Ajouter</button>
-          <button type="button" className={mapMode === 'select' ? 'on' : ''} onClick={() => setMapMode('select')}>Sélectionner</button>
+      <div className="toolbar-zone">
+        <div className={`floating toolbar-card${toolsOpen ? '' : ' collapsed'}`}>
+          <div className="segmented">
+            <button type="button" className={mapMode === 'add' ? 'on' : ''} onClick={() => setMapMode('add')}>＋ Ajouter</button>
+            <button type="button" className={mapMode === 'select' ? 'on' : ''} onClick={() => setMapMode('select')}>Sélectionner</button>
+          </div>
+          {toolsOpen && (
+            <>
+              <button type="button" onClick={store.undo} disabled={!store.canUndo} title="Annuler (⌘Z)" aria-label="Annuler">↶</button>
+              <button type="button" onClick={store.redo} disabled={!store.canRedo} title="Rétablir (⇧⌘Z)" aria-label="Rétablir">↷</button>
+              <button type="button" onClick={() => setSearching(true)} title="Chercher une carte (id, x,y ou sous-zone)">🔍 Chercher</button>
+              <button
+                type="button" disabled={steps.length < 2}
+                title="La dernière étape repart vers la première"
+                onClick={() => editBracket((b) => {
+                  const last = b.steps[b.steps.length - 1];
+                  last.path = suggestPath(last, b.steps[0], pathStyle);
+                })}
+              >⟲ Boucler</button>
+              <button
+                type="button" className="danger" disabled={!steps.length}
+                onClick={() => { if (confirm('Effacer toutes les étapes de ce palier ?')) { editBracket((b) => { b.steps = []; }); setSelectedId(null); } }}
+              >Tout effacer</button>
+            </>
+          )}
+          <button type="button" className="icon-button" onClick={() => setToolsOpen(!toolsOpen)} title={toolsOpen ? 'Réduire la barre d\'outils' : 'Afficher tous les outils'}>{toolsOpen ? '–' : '+'}</button>
         </div>
-        <button type="button" onClick={store.undo} disabled={!store.canUndo} title="Annuler (⌘Z)">↶ Annuler</button>
-        <button type="button" onClick={store.redo} disabled={!store.canRedo} title="Rétablir (⇧⌘Z)">↷ Rétablir</button>
-        <button type="button" onClick={() => setSearching(true)}>🔍 Chercher une carte</button>
-        <button
-          type="button" disabled={steps.length < 2}
-          title="La dernière étape repart vers la première"
-          onClick={() => editBracket((b) => {
-            const last = b.steps[b.steps.length - 1];
-            last.path = suggestPath(last, b.steps[0], pathStyle);
-          })}
-        >⟲ Boucler</button>
-        <button
-          type="button" className="danger" disabled={!steps.length}
-          onClick={() => { if (confirm('Effacer toutes les étapes de ce palier ?')) { editBracket((b) => { b.steps = []; }); setSelectedId(null); } }}
-        >Tout effacer</button>
       </div>
 
       <aside className={`floating panel left-panel${leftOpen ? '' : ' collapsed'}`}>
@@ -248,6 +257,20 @@ export function RouteEditor({ store, routeName, onRouteChange, atelier }: RouteE
                   </div>
                 )}
                 {bracket && <BracketSettings bracket={bracket} withLevels={levels} onChange={editBracket} />}
+                {route.preamble !== undefined && (
+                  <PreambleField
+                    label={`Lua en tête de ${routeName}() (conservé à l'import)`}
+                    value={route.preamble}
+                    onChange={(v) => editRoute((r) => { if (v.trim()) r.preamble = v; else delete r.preamble; })}
+                  />
+                )}
+                {bracket?.preamble !== undefined && (
+                  <PreambleField
+                    label={levels ? 'Lua du palier, avant son trajet (conservé à l\'import)' : 'Lua avant le trajet (conservé à l\'import)'}
+                    value={bracket.preamble}
+                    onChange={(v) => editBracket((b) => { if (v.trim()) b.preamble = v; else delete b.preamble; })}
+                  />
+                )}
               </>
             )}
           </div>
@@ -479,5 +502,16 @@ function BracketSettings({ bracket, withLevels, onChange }: {
         ))}
       </details>
     </div>
+  );
+}
+
+/** Code Lua écrit à la main, gardé tel quel autour du trajet (vider le champ le supprime). */
+function PreambleField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="field preamble">
+      <span>{label}</span>
+      <textarea className="code" spellCheck={false} rows={Math.min(10, value.split('\n').length + 1)}
+        value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }

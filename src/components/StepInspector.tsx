@@ -314,6 +314,14 @@ export function StepInspector({ index: mapIndex, step, stepIndex: index, isPheni
         <span>Commentaire</span>
         <input value={step.comment ?? ''} onChange={(e) => setField('comment', e.target.value || undefined)} />
       </label>
+      {step.notes && (
+        <label className="field">
+          <span>Lignes de commentaire au-dessus de l'étape</span>
+          <textarea className="code" spellCheck={false} rows={Math.min(6, step.notes.length + 1)}
+            value={step.notes.join('\n')}
+            onChange={(e) => setField('notes', e.target.value ? e.target.value.split('\n') : undefined)} />
+        </label>
+      )}
     </div>
   );
 }

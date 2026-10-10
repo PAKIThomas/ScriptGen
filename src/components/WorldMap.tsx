@@ -1,6 +1,7 @@
 // Carte du monde : grille des cartes cliquable + fond officiel du calque (tuiles DofusDB, comme le
 // Script Creator), marqueurs des banques / zaaps, et tracé du trajet.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePanelOpen } from '../usePanelOpen';
 import {
   coordsIndexKey, locateStepMap, MAIN_WORLD, worldTileUrl, type MapIndex, type MapInfo, type WorldGeometry,
 } from '../data/maps';
@@ -70,6 +71,7 @@ export function WorldMap({ steps, ghostSteps, selectedId, mode, index, world, on
   const [hover, setHover] = useState<Coords | null>(null);
   const [goto, setGoto] = useState('');
   const [prefs, setPrefs] = useState(loadPrefs);
+  const [layerOpen, setLayerOpen] = usePanelOpen('calques');
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null);
 
   useEffect(() => {
@@ -317,33 +319,40 @@ export function WorldMap({ steps, ghostSteps, selectedId, mode, index, world, on
         </defs>
       </svg>
 
-      <div className="floating map-layer-card">
-        <label className="field inline">
-          <span>Calque</span>
-          <select value={world} onChange={(e) => onWorldChange(Number(e.target.value))}>
-            {(index?.worlds ?? [{ id: MAIN_WORLD, name: 'Monde des Douze', count: 0 }]).filter((w) => w.id !== -1).map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
-        </label>
-        <div className="row">
-          <label className="check" title="Images officielles du monde (DofusDB, connexion internet)">
-            <input type="checkbox" checked={prefs.tiles} onChange={(e) => setPrefs({ ...prefs, tiles: e.target.checked })} /> Fond
+      <div className={`floating map-layer-card${layerOpen ? '' : ' collapsed'}`}>
+        <div className="layer-head">
+          <label className="field inline">
+            <span>Calque</span>
+            <select value={world} onChange={(e) => onWorldChange(Number(e.target.value))}>
+              {(index?.worlds ?? [{ id: MAIN_WORLD, name: 'Monde des Douze', count: 0 }]).filter((w) => w.id !== -1).map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
           </label>
-          <label className="check"><input type="checkbox" checked={prefs.grid} onChange={(e) => setPrefs({ ...prefs, grid: e.target.checked })} /> Grille</label>
-          <label className="check"><input type="checkbox" checked={prefs.markers} onChange={(e) => setPrefs({ ...prefs, markers: e.target.checked })} /> Banques &amp; zaaps</label>
+          <button type="button" className="icon-button" onClick={() => setLayerOpen(!layerOpen)} title={layerOpen ? 'Réduire' : 'Afficher les options de la carte'}>{layerOpen ? '–' : '+'}</button>
         </div>
-        {prefs.tiles && (
-          <input type="range" min={0.2} max={1} step={0.05} value={prefs.opacity}
-            onChange={(e) => setPrefs({ ...prefs, opacity: Number(e.target.value) })} title="Opacité du fond" />
+        {layerOpen && (
+          <>
+            <div className="row">
+              <label className="check" title="Images officielles du monde (DofusDB, connexion internet)">
+                <input type="checkbox" checked={prefs.tiles} onChange={(e) => setPrefs({ ...prefs, tiles: e.target.checked })} /> Fond
+              </label>
+              <label className="check"><input type="checkbox" checked={prefs.grid} onChange={(e) => setPrefs({ ...prefs, grid: e.target.checked })} /> Grille</label>
+              <label className="check"><input type="checkbox" checked={prefs.markers} onChange={(e) => setPrefs({ ...prefs, markers: e.target.checked })} /> Banques &amp; zaaps</label>
+            </div>
+            {prefs.tiles && (
+              <input type="range" min={0.2} max={1} step={0.05} value={prefs.opacity}
+                onChange={(e) => setPrefs({ ...prefs, opacity: Number(e.target.value) })} title="Opacité du fond" />
+            )}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const m = /^\s*(-?\d+)\s*[,; ]\s*(-?\d+)\s*$/.exec(goto);
+              if (m) setCenter({ x: Number(m[1]), y: Number(m[2]) });
+            }}>
+              <input value={goto} onChange={(e) => setGoto(e.target.value)} placeholder="Aller à x,y" />
+            </form>
+          </>
         )}
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          const m = /^\s*(-?\d+)\s*[,; ]\s*(-?\d+)\s*$/.exec(goto);
-          if (m) setCenter({ x: Number(m[1]), y: Number(m[2]) });
-        }}>
-          <input value={goto} onChange={(e) => setGoto(e.target.value)} placeholder="Aller à x,y" />
-        </form>
       </div>
 
       <div className="floating map-hover-card">

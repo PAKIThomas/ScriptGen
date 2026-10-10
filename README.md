@@ -24,7 +24,7 @@ Mettre à jour plus tard : `cd ScriptGen && git pull && npm install && npm start
 Sur Mac, tu peux aussi double-cliquer sur **`Lancer ScriptGen.command`** (la première fois :
 clic droit → Ouvrir, pour passer l'avertissement de macOS).
 
-Au premier lancement, clique sur **⚙** pour choisir :
+Au premier lancement, clique sur **Ouvrir… → Dossiers d'export et des projets…** pour choisir :
 
 - le **dossier d'export** : le dossier partagé avec la VM Windows (le `.lua` y est écrit par « Exporter ») ;
 - le **dossier des projets** : où sont enregistrés les projets `.json` (« Enregistrer » / « Ouvrir… »).
@@ -34,16 +34,17 @@ Ces réglages sont gardés dans `~/.scriptgen/config.json`. Le dossier d'export 
 ## Utilisation
 
 L'écran reprend le style du Script Creator (dépôt `limposteur/mizan_script` : or antique et émeraude,
-polices Inter et Cinzel) : la **carte en plein écran**, avec des panneaux flottants (réductibles avec « – »)
-et des onglets qui s'ouvrent par-dessus la carte.
+polices Inter et Cinzel) : la **carte en plein écran**, avec des panneaux flottants et des onglets qui s'ouvrent par-dessus la carte.
+**Chaque panneau se réduit avec « – »** (Trajets, Étapes, Atelier, barre d'outils, Calque) et se rouvre avec « + » ;
+l'état ouvert / réduit est retenu d'une fois sur l'autre.
 
 | Zone | Ce qu'on y fait |
 |---|---|
-| **Carte** | Clic sur une case = ajoute la carte au trajet. Glisser = se déplacer, molette = zoom. Carte « Calque » : choix du monde (Monde des Douze, **Incarnam**, souterrains…), fond officiel, grille, banques (B) et zaaps (Z). Survol = sous-zone et id. Hors du Monde des Douze, l'étape est écrite par son **id** (les coordonnées y sont ambiguës). |
+| **Carte** | Clic sur une case = ajoute la carte au trajet. Glisser = se déplacer, molette = zoom. Carte « Calque » (bas droite) : choix du monde (Monde des Douze, **Incarnam**, souterrains…), fond officiel, grille, banques (B) et zaaps (Z). Survol = sous-zone et id. Hors du Monde des Douze, l'étape est écrite par son **id** (les coordonnées y sont ambiguës). |
 | **Panneau Trajets** (gauche) | `move()`, `bank()`, `phenix()`. *Trajet normal* (une boucle) ou *Trajet leveling* (un trajet par palier de niveau de métier ou de personnage), avec par palier la liste de récolte et les filtres de monstres (`config:set…`). |
 | **Panneau Étapes** (droite) | Chaque ligne a ses raccourcis **Récolter** / **Combattre** (un clic, sans ouvrir l'étape), les repères DÉBUT / FIN et ✈ (carte non voisine = voyage), ⧉ dupliquer, ✕ supprimer, et **⋯** pour déplier toutes les options de l'étape (banque, coffre / maison à code, porte, cellule, sortie, régénération, Lua `custom`, fiche et image de la carte). En haut : Tout récolter / Tout combattre, ajout par id (intérieurs) ou havre-sac. Liste réordonnable en glissant ; survoler une ligne la montre sur la carte. En bas : **vérifications** (id inconnu, étape sans sortie, coffre mal formé…). |
 | **Atelier du script** (bas gauche) | Aperçu du `.lua` en direct, coloré, bouton Copier. |
-| **Barre d'outils** (haut) | Ajouter / Sélectionner, Annuler / Rétablir, 🔍 Chercher une carte (id, « x,y » ou sous-zone, avec image), Boucler (la dernière étape repart vers la première), Tout effacer. |
+| **Barre d'outils** (haut) | Ajouter / Sélectionner (restent visibles quand la barre est réduite), ↶ / ↷ annuler / rétablir, 🔍 Chercher une carte (id, « x,y » ou sous-zone, avec image), Boucler (la dernière étape repart vers la première), Tout effacer. |
 
 | Onglet | Ce qu'on y fait |
 |---|---|
@@ -54,6 +55,23 @@ et des onglets qui s'ouvrent par-dessus la carte.
 
 - **Importer .lua** (ou *Ouvrir… → Scripts d'exemple*) : le script est relu avec un vrai parseur Lua.
   Ce qui est reconnu devient éditable ; **tout le reste est conservé à l'identique** en « Lua brut ».
+  Les commentaires entre les étapes (y compris des étapes mises en commentaire) restent attachés à leur étape,
+  et le code écrit avant le `return` d'un trajet est gardé dans un champ « Lua avant le trajet » du panneau Trajets.
+- **Scripts SnowBot / Ankabot** : MizanBot les fait tourner tels quels ; à l'import, ScriptGen les convertit vers
+  le format MizanBot, uniquement avec les équivalences écrites dans la doc API (« Compatibilité SnowBot ») :
+  - `GATHER` → `ELEMENTS_TO_GATHER` ;
+  - `config:setMaxMonsters(n)`, `setMinMonsters`, `setGatherList`, `setForbiddenMonsters`, `setMandatoryMonsters`,
+    `setAmountOfSpecificMonsters` au niveau du fichier → `MAX_MONSTERS`, `MIN_MONSTERS`, `ELEMENTS_TO_GATHER`,
+    `FORBIDDEN_MONSTERS`, `FORCE_MONSTERS`, `MONSTERS_AMOUNT` (min / max bornés à 1–8 comme les setters) ;
+  - `forceGather` / `forceFight` → `forcegather` / `forcefight` ;
+  - paliers écrits `if job:level(2) >= 20 then … elseif … else … end` (ou `character:level()`,
+    `getCharacterLevel()`, `getJobLevel(id)`, `<`, `<=`, `>`, `>=`, avec ou sans `else` / `return` final)
+    → trajet leveling éditable ;
+  - `MAX_PODS = 90` et `MAX_MONSTERS = 8` ajoutés s'ils manquent (seuils SnowBot ; sans eux MizanBot banque à 95 %
+    et attaque des groupes de toute taille).
+
+  Le message d'import liste chaque conversion. Ce qui n'a pas d'équivalent (`fightManagement`, fonctions perso…)
+  reste en Lua brut, que MizanBot exécute comme avant.
 - **Exporter le .lua** écrit `nom_du_fichier.lua` dans le dossier d'export, 📁 l'ouvre dans le Finder.
 - ⌘Z / ⇧⌘Z : annuler / rétablir. Le projet en cours est aussi sauvegardé automatiquement dans le navigateur.
 
@@ -85,19 +103,20 @@ src/
   model/registry.ts      Registre des paramètres (globals) affichés dans l'onglet Paramètres
   model/geo.ts           Coordonnées, directions, sortie proposée entre deux cartes
   lua/generate.ts        Projet → .lua (format Mizan Script Creator)
-  lua/import.ts          .lua → projet (luaparse ; le non-reconnu devient « Lua brut »)
+  lua/import.ts          .lua → projet (luaparse ; conversions SnowBot ; le non-reconnu devient « Lua brut »)
   lua/serialize.ts       Écriture des valeurs Lua
   lua/automation.ts      Blocs générés : automatismes (scriptgenTick), onFightEnd, stopped
   model/checks.ts        Vérifications avant export
   data/                  Monstres, interactifs (JSON), métiers et ressources (Annexe du guide)
   components/            Interface React (carte, étapes, paramètres, sélecteurs)
+  usePanelOpen.ts        Mémorise l'état ouvert / réduit des panneaux
 public/data/items.json   Objets (19 000 entrées, chargés à la demande)
 public/data/maps.json    Référentiel des 15 000 cartes (id, x, y, monde, sous-zone, extérieur) — npm run maps
 public/data/subareas.json, areas.json  Noms des sous-zones et zones
 public/data/worlds.json  Géométrie des calques (pour placer les tuiles officielles du monde)
 public/data/banks.json   Banques prédéfinies (carte du banquier)
 public/data/zaaps.json   Zaaps affichés sur la carte
-tests/                   Tests (npm test)
+tests/                   Tests (npm test) ; tests/fixtures/snowbot.lua = script SnowBot de test
 ```
 
 ## Ajouter un nouveau paramètre

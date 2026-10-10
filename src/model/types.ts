@@ -53,6 +53,8 @@ export interface Step {
   extra?: [string, LuaValue][];
   /** Commentaire en fin de ligne (sans le `--`). */
   comment?: string;
+  /** Lignes de commentaire placées juste au-dessus de l'étape (texte Lua complet, `--` compris). */
+  notes?: string[];
 }
 
 /** Réglages appliqués à l'entrée d'un palier (module config: de l'API). */
@@ -71,7 +73,11 @@ export interface Bracket {
   /** Niveau minimal (inclus). Le maximum est le min du palier suivant - 1. */
   minLevel: number;
   config: BracketConfig;
+  /** Lua conservé tel quel, exécuté dans le palier avant le trajet (import d'un script écrit à la main). */
+  preamble?: string;
   steps: Step[];
+  /** Lignes de commentaire après la dernière étape (ex. étapes mises en commentaire). */
+  tailNotes?: string[];
 }
 
 export type LevelSource =
@@ -80,6 +86,8 @@ export type LevelSource =
   | { kind: 'character' };
 
 export interface Route {
+  /** Lua conservé tel quel, exécuté en tête de la fonction (avant le choix du palier). */
+  preamble?: string;
   levelSource: LevelSource;
   brackets: Bracket[];
 }

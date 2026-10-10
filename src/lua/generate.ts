@@ -25,9 +25,23 @@ export function stepFields(step: Step): string[] {
   return fields;
 }
 
-function stepLine(step: Step, indent: string, comma: boolean): string {
+function stepLines(step: Step, indent: string, comma: boolean): string[] {
   const comment = step.comment ? ` -- ${step.comment}` : '';
-  return `${indent}{ ${stepFields(step).join(', ')} }${comma ? ',' : ''}${comment}`;
+  return [
+    ...noteLines(step.notes, indent),
+    `${indent}{ ${stepFields(step).join(', ')} }${comma ? ',' : ''}${comment}`,
+  ];
+}
+
+function noteLines(notes: string[] | undefined, indent: string): string[] {
+  // Une ligne saisie sans « -- » devient un commentaire (le Lua reste valide).
+  return (notes ?? []).filter((n) => n.trim()).map((n) => `${indent}${n.trim().startsWith('--') ? n : `-- ${n.trim()}`}`);
+}
+
+/** Lua conservé (préambule), réindenté au niveau voulu. */
+function luaLines(text: string | undefined, indent: string): string[] {
+  if (!text?.trim()) return [];
+  return text.split('\n').map((l) => (l.trim() ? indent + l : ''));
 }
 
 function configLines(config: BracketConfig, indent: string): string[] {
@@ -49,15 +63,20 @@ function markedSteps(bracket: Bracket, indent: string): string[] {
   return [
     '',
     `${indent}-- ▶ Début étape : ${bracket.name}`,
-    ...bracket.steps.map((s) => stepLine(s, indent, true)),
+    ...bracket.steps.flatMap((s) => stepLines(s, indent, true)),
+    ...noteLines(bracket.tailNotes, indent),
     `${indent}-- ■ Fin étape : ${bracket.name}`,
     '',
   ];
 }
 
 /** Liste d'étapes simple : virgule après chaque étape sauf la dernière (style bank()). */
-function plainSteps(steps: Step[], indent: string, trailingComma: boolean): string[] {
-  return steps.map((s, i) => stepLine(s, indent, trailingComma || i < steps.length - 1));
+function plainSteps(bracket: Bracket, indent: string, trailingComma: boolean): string[] {
+  const { steps } = bracket;
+  return [
+    ...steps.flatMap((s, i) => stepLines(s, indent, trailingComma || i < steps.length - 1)),
+    ...noteLines(bracket.tailNotes, indent),
+  ];
 }
 
 function levelRangeLabel(brackets: Bracket[], i: number): string {
@@ -74,14 +93,15 @@ function levelExpression(route: Route): string {
 export function generateRoute(name: string, route: Route, withTick = false): string {
   const lines = [`function ${name}()`];
   if (withTick) lines.push(`  ${TICK_CALL}`);
+  lines.push(...luaLines(route.preamble, '  '));
   const trailingComma = name === 'move';
   const { brackets } = route;
 
   if (route.levelSource.kind === 'none' || brackets.length <= 1) {
     const bracket = brackets[0];
-    if (bracket) lines.push(...configLines(bracket.config, '  '));
+    if (bracket) lines.push(...luaLines(bracket.preamble, '  '), ...configLines(bracket.config, '  '));
     lines.push('  return {');
-    if (bracket) lines.push(...plainSteps(bracket.steps, '    ', trailingComma));
+    if (bracket) lines.push(...plainSteps(bracket, '    ', trailingComma));
     lines.push('  }');
   } else {
     lines.push(`  local niveau = ${levelExpression(route)}`);
@@ -90,7 +110,7 @@ export function generateRoute(name: string, route: Route, withTick = false): str
       lines.push(`  -- ${bracket.name} : ${levelRangeLabel(brackets, i)}`);
       if (last) lines.push('  else');
       else lines.push(`  ${i === 0 ? 'if' : 'elseif'} niveau < ${brackets[i + 1].minLevel} then`);
-      lines.push(...configLines(bracket.config, '    '));
+      lines.push(...luaLines(bracket.preamble, '    '), ...configLines(bracket.config, '    '));
       lines.push('    return {');
       lines.push(...markedSteps(bracket, '      '));
       lines.push('    }');
