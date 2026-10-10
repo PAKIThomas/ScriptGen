@@ -9,7 +9,7 @@ import { homedir, platform } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
-import { chat, resetConversation } from './ai.mjs';
+import { chat, OLLAMA_DEFAULTS, ollamaPull, ollamaStatus, pullState, resetConversation } from './ai.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT ?? 5317);
@@ -20,6 +20,12 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const DEFAULT_CONFIG = {
   exportDir: join(homedir(), 'ScriptGen', 'export'),
   projectsDir: join(homedir(), 'ScriptGen', 'projets'),
+  /** Assistant IA : 'ollama' (IA locale sur le Mac, par défaut) ou 'claude' (API Anthropic). */
+  aiProvider: 'ollama',
+  ollamaUrl: OLLAMA_DEFAULTS.url,
+  ollamaModel: OLLAMA_DEFAULTS.model,
+  /** Mode « réflexion » des modèles qui le proposent (qwen3…) : plus fiable, plus lent. */
+  ollamaThink: true,
 };
 
 function loadConfig() {
@@ -68,6 +74,11 @@ api.put('/config', (req, res) => {
   for (const key of ['exportDir', 'projectsDir']) {
     if (typeof req.body?.[key] === 'string' && req.body[key].trim()) next[key] = resolve(req.body[key].trim());
   }
+  if (req.body?.aiProvider === 'ollama' || req.body?.aiProvider === 'claude') next.aiProvider = req.body.aiProvider;
+  if (typeof req.body?.ollamaThink === 'boolean') next.ollamaThink = req.body.ollamaThink;
+  for (const key of ['ollamaUrl', 'ollamaModel']) {
+    if (typeof req.body?.[key] === 'string' && req.body[key].trim()) next[key] = req.body[key].trim();
+  }
   if (typeof req.body?.anthropicApiKey === 'string') {
     const key = req.body.anthropicApiKey.trim();
     if (key) next.anthropicApiKey = key;
@@ -77,15 +88,38 @@ api.put('/config', (req, res) => {
   res.json(publicConfig(next));
 });
 
-// ── Assistant IA (Claude) ──
+// ── Assistant IA (IA locale Ollama ou Claude) ──
+api.get('/ai/status', async (_req, res) => {
+  const config = loadConfig();
+  const status = await ollamaStatus(config.ollamaUrl);
+  res.json({
+    provider: config.aiProvider,
+    model: config.ollamaModel,
+    ollama: { ...status, hasModel: status.models.some((m) => m.name === config.ollamaModel || m.name === `${config.ollamaModel}:latest`) },
+    hasAnthropicKey: Boolean(config.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+    pull: { ...pullState },
+  });
+});
+
+api.post('/ai/pull', (_req, res) => {
+  const config = loadConfig();
+  ollamaPull(config.ollamaUrl, config.ollamaModel);
+  res.json({ ok: true });
+});
+
 api.post('/ai/chat', async (req, res) => {
-  const apiKey = loadConfig().anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: 'Aucune clé API Anthropic : ajoute-la dans Ouvrir… → Réglages.' });
+  const config = loadConfig();
+  const apiKey = config.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  if (config.aiProvider === 'claude' && !apiKey) return res.status(400).json({ error: 'Aucune clé API Anthropic : ajoute-la dans Ouvrir… → Réglages, ou repasse sur l\'IA locale.' });
   const message = String(req.body?.message ?? '').trim();
   if (!message) return res.status(400).json({ error: 'Message vide.' });
   try {
     res.json(await chat({
-      root, apiKey, message,
+      root, message, apiKey,
+      provider: config.aiProvider,
+      ollamaUrl: config.ollamaUrl,
+      ollamaModel: config.ollamaModel,
+      ollamaThink: config.ollamaThink,
       conversationId: String(req.body?.conversationId ?? 'default'),
       currentPlan: req.body?.plan ?? null,
     }));

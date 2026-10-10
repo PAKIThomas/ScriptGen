@@ -24,39 +24,77 @@ Mettre à jour plus tard : `cd ScriptGen && git pull && npm install && npm start
 Sur Mac, tu peux aussi double-cliquer sur **`Lancer ScriptGen.command`** (la première fois :
 clic droit → Ouvrir, pour passer l'avertissement de macOS).
 
-Au premier lancement, clique sur **Ouvrir… → Réglages (dossiers, clé IA)…** pour choisir :
+Au premier lancement, clique sur **Ouvrir… → Réglages (dossiers, assistant IA)…** pour choisir :
 
 - le **dossier d'export** : le dossier partagé avec la VM Windows (le `.lua` y est écrit par « Exporter ») ;
 - le **dossier des projets** : où sont enregistrés les projets `.json` (« Enregistrer » / « Ouvrir… »).
 
 Ces réglages sont gardés dans `~/.scriptgen/config.json`. Le dossier d'export doit déjà exister.
 
-## Assistant IA (Claude)
+## Assistant IA (local, sur ton Mac)
 
 Bouton **✨ Assistant** (ou ⌘J, ou /) : décris le script en français, par exemple
 « monte mon personnage de 1 à 50 : de 1 à 10 à Incarnam, puis les Bouftous d'Astrub, équipe la Coiffe du Bouftou
-au niveau 20, banque d'Astrub ». L'assistant :
+au niveau 20, banque d'Astrub ». Ce qui se passe :
 
-1. cherche dans les données du jeu stockées en local (zones et leur niveau, monstres et leurs niveaux, cartes,
-   équipements, ressources Dofus-Map, banques) ;
-2. propose un **plan** (paliers de niveau, cartes, monstres visés, objets à équiper, banque…) que le serveur
-   **vérifie** : chaque id doit exister, une carte une seule fois par palier, un objet équipé au bon niveau ;
-   sinon le plan est renvoyé à l'IA pour correction ;
-3. applique le plan au projet (**⌘Z pour annuler**) et dit en quelques lignes ce qu'il a fait et ce qu'il a choisi
-   à ta place (« À valider »).
+1. **l'IA locale comprend la demande** et la résume en une « intention » : tranches de niveaux, zone voulue, combat
+   ou récolte, monstres à cibler ou à éviter, ressources, objets à équiper (et à quel niveau), équipement
+   automatique, caractéristique où investir les points, banque, métier ;
+2. **ScriptGen fait le reste sans IA**, avec les données du jeu stockées en local : chaque nom est retrouvé
+   (sous-zone, monstre, objet, ressource, banque) ; une zone non précisée est choisie d'après le niveau, les
+   monstres demandés ou les ressources (« de 1 à 50 » sans zone = un palier tous les 10 niveaux) ; chaque palier
+   devient une boucle de cartes voisines ; « banque proche » = la banque la plus proche ; les tranches de niveaux
+   écrites dans ta phrase priment sur la lecture de l'IA ;
+3. le plan est **vérifié** (chaque id doit exister, une carte une seule fois par palier, un objet équipé au bon
+   niveau), appliqué au projet (**⌘Z pour annuler**), et l'assistant résume ce qu'il a fait et ce qu'il a choisi à
+   ta place (« À valider »).
 
-Tu continues ensuite la conversation : « ajoute un palier 30–40 aux Champs de Cania », « évite les Tofus »…
-L'IA ne rédige jamais le Lua : le script est toujours écrit par le générateur de ScriptGen, avec les seules
-fonctions de l'API MizanBot. Le plan remplace le trajet `move()` (portes, cellules et Lua `custom` posés à la main
-sur les étapes ne sont pas conservés quand l'IA refait le trajet).
+Tu continues ensuite la conversation : « ajoute un palier de 21 à 30 en Forêt d'Amakna », « investis en vitalité »,
+« remplace Astrub par les Prairies d'Astrub » (seul ce qui change est modifié ; « Nouvelle » repart de zéro), puis
+**⌘E** exporte le `.lua`
+dans le dossier partagé avec la VM. L'IA ne rédige jamais le Lua : le script est toujours écrit par le générateur de
+ScriptGen, avec les seules fonctions de l'API MizanBot. Le plan remplace le trajet `move()` (portes, cellules et Lua
+`custom` posés à la main sur les étapes ne sont pas conservés quand l'IA refait le trajet).
 
-**Mise en place** : crée une clé API sur <https://console.anthropic.com> (API Keys) et colle-la dans le panneau de
-l'assistant ou dans *Ouvrir… → Réglages*. Elle est enregistrée sur ton Mac dans `~/.scriptgen/config.json` (jamais
-dans le dépôt, jamais renvoyée au navigateur). La variable d'environnement `ANTHROPIC_API_KEY` marche aussi.
+### Installer l'IA locale (une seule fois)
 
-**Confidentialité et coût** : c'est la seule fonction qui envoie des données à l'extérieur — ta demande, le plan du
-projet en cours et les résultats des recherches partent chez Anthropic (modèle Claude Opus 5.5). Compte quelques
-dizaines de centimes de dollar par demande, selon sa longueur (suivi sur console.anthropic.com).
+L'IA tourne **sur ton Mac** grâce à **Ollama** (gratuit) : rien ne part sur internet, pas de clé, pas de facture.
+
+1. Télécharge Ollama pour macOS sur <https://ollama.com/download>, glisse-le dans Applications et ouvre-le
+   (une icône de lama apparaît dans la barre des menus ; il se relance seul au démarrage du Mac).
+2. Dans ScriptGen, ouvre **✨ Assistant** : clique **Télécharger qwen3:8b** (≈ 5 Go, une seule fois), ou dans le
+   Terminal : `ollama pull qwen3:8b`.
+3. C'est prêt.
+
+Choix du modèle (*Ouvrir… → Réglages → Assistant IA*) selon la mémoire du Mac (menu  → À propos de ce Mac) :
+
+| Mémoire | Modèle conseillé | Taille | Remarque |
+|---|---|---|---|
+| 8 Go | `qwen3:4b` | 2,5 Go | rapide, mais se trompe plus souvent sur les longues demandes |
+| 16 Go | `qwen3:8b` (par défaut) | 5 Go | bon compromis |
+| 32 Go et plus | `qwen3:14b` | 9 Go | le plus fiable des trois, plus lent |
+
+Une IA locale est moins fine qu'une grande IA en ligne : écris des demandes claires (niveaux, zones, objets par leur
+nom), découpe les très longues demandes en plusieurs messages et relis le résumé « À valider ». Une demande ne
+fait qu'un appel à l'IA : de l'ordre de 10 à 30 secondes sur un Mac à puce Apple M1–M4 (estimation ; plus long sur un Mac Intel) ; la case « Réflexion » des réglages
+rend l'IA plus fiable mais plus lente. Pour voir ce que l'IA a compris : le détail « recherche(s) » sous chaque
+réponse, ou `SCRIPTGEN_AI_DEBUG=1 npm start` pour un journal dans le Terminal.
+
+**En option**, *Réglages → Assistant IA → Claude* utilise l'API Anthropic à la place (plus fiable, payant, la demande
+part chez Anthropic ; clé API à créer sur console.anthropic.com, enregistrée dans `~/.scriptgen/config.json`).
+
+### Ce qui est installé sur ton Mac
+
+| Quoi | Où | Taille | Pour l'enlever |
+|---|---|---|---|
+| Node.js (déjà installé pour ScriptGen) | `/usr/local` | ≈ 100 Mo | désinstalleur Node.js |
+| ScriptGen + ses dépendances (`npm install`) | le dossier `ScriptGen` cloné | ≈ 300 Mo | supprimer le dossier |
+| Réglages de ScriptGen (dossiers, modèle, clé éventuelle) | `~/.scriptgen/config.json` | quelques octets | supprimer le dossier `~/.scriptgen` |
+| Ollama (l'application qui fait tourner l'IA) | `/Applications/Ollama.app` | ≈ 500 Mo | glisser à la corbeille |
+| Le modèle d'IA (ex. qwen3:8b) | `~/.ollama/models` | 2,5 à 9 Go | `ollama rm qwen3:8b` ou supprimer `~/.ollama` |
+
+Ollama n'écoute que sur ton Mac (`127.0.0.1:11434`), comme ScriptGen (`127.0.0.1:5317`) : rien n'est accessible
+depuis l'extérieur.
 
 ## Raccourcis clavier
 
@@ -134,7 +172,8 @@ docs/                    Documentation MizanBot (guide + API en PDF) et listes d
 exemples/                Scripts de référence (bucheron.lua = format cible)
 scripts/build-data.mjs   Convertit docs/*.txt en JSON (npm run data)
 server/index.mjs         Serveur local : interface, export, projets, ouverture de dossier, assistant
-server/ai.mjs            Assistant IA : outils de recherche, vérification du plan, conversation avec Claude
+server/ai.mjs            Assistant IA : vérification du plan, conversation (Ollama en local, ou Claude en option)
+server/planner.mjs       IA locale : intention → plan (noms → ids, choix des zones, boucles de cartes, banque)
 src/
   model/types.ts         Modèle d'un projet (étapes, paliers, trajets, sections)
   model/registry.ts      Registre des paramètres (globals) affichés dans l'onglet Paramètres

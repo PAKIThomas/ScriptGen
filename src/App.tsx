@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, type AppConfig } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, type AiStatus, type AppConfig } from './api';
 import { AdvancedPanel } from './components/AdvancedPanel';
 import { AssistantPanel, type AssistantHandle } from './components/AssistantPanel';
 import { CommandPalette, ShortcutHelp, type Command } from './components/CommandPalette';
@@ -59,10 +59,10 @@ export function App() {
   const [dialog, setDialog] = useState<'open' | 'settings' | null>(null);
   const [overlay, setOverlay] = useState<'palette' | 'help' | null>(null);
   const [assistantOpen, setAssistantOpen] = usePanelOpen('assistant', false);
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const assistant = useRef<AssistantHandle>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const refreshConfig = () => api.getConfig().then((c) => setHasKey(!!c.hasAnthropicKey)).catch(() => setHasKey(null));
+  const refreshConfig = useCallback(() => { api.aiStatus().then(setAiStatus).catch(() => setAiStatus(null)); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { refreshConfig(); }, []);
 
@@ -96,6 +96,7 @@ export function App() {
     notify(`Exporté : ${path}`);
   });
   const openAssistant = () => {
+    refreshConfig();
     setAssistantOpen(true);
     window.setTimeout(() => assistant.current?.focus(), 0);
   };
@@ -109,7 +110,7 @@ export function App() {
     { id: 'import', group: 'Fichier', label: 'Importer un .lua', keys: '⌘I', run: () => fileInput.current?.click() },
     { id: 'new', group: 'Fichier', label: 'Nouveau projet', run: () => { if (confirm('Créer un nouveau projet vide ?')) replace(newProject()); } },
     { id: 'copy', group: 'Fichier', label: 'Copier le Lua', run: () => navigator.clipboard.writeText(lua).then(() => notify('Lua copié')) },
-    { id: 'settings', group: 'Fichier', label: 'Réglages (dossiers, clé IA)', run: () => setDialog('settings') },
+    { id: 'settings', group: 'Fichier', label: 'Réglages (dossiers, assistant IA)', run: () => setDialog('settings') },
     ...TABS.map((t, i) => ({ id: `tab-${t.id}`, group: 'Onglets', label: t.label, keys: String(i + 1), run: () => setTab(t.id) })),
     { id: 'route-move', group: 'Trajets', label: 'Trajet principal — move()', run: () => { setRouteName('move'); setTab('route'); } },
     { id: 'route-bank', group: 'Trajets', label: 'Retour banque — bank()', run: () => { setRouteName('bank'); setTab('route'); } },
@@ -244,8 +245,9 @@ export function App() {
           <AssistantPanel
             ref={assistant}
             store={store}
-            hasKey={hasKey}
-            onKeySaved={() => { refreshConfig(); notify('Clé API enregistrée sur ce Mac.'); }}
+            status={aiStatus}
+            onStatusChange={refreshConfig}
+            onOpenSettings={() => setDialog('settings')}
             onClose={() => setAssistantOpen(false)}
             onApplied={(text) => { setTab('route'); setRouteName('move'); notify(text); }}
           />
@@ -338,7 +340,7 @@ function OpenDialog({ onClose, onProject, onExample, onError, onSettings }: {
           ))}
         </ul>
         <div className="row end">
-          <button type="button" onClick={onSettings}>Réglages (dossiers, clé IA)…</button>
+          <button type="button" onClick={onSettings}>Réglages (dossiers, assistant IA)…</button>
           <button type="button" onClick={() => api.openFolder('projects').catch((e) => onError(e.message))}>Ouvrir le dossier des projets</button>
           <button type="button" onClick={onClose}>Fermer</button>
         </div>
@@ -360,7 +362,11 @@ function SettingsDialog({ onClose, onSaved, onError }: { onClose: () => void; on
           <form onSubmit={async (e) => {
             e.preventDefault();
             try {
-              setConfig(await api.setConfig({ exportDir: config.exportDir, projectsDir: config.projectsDir, ...(apiKey.trim() ? { anthropicApiKey: apiKey.trim() } : {}) }));
+              setConfig(await api.setConfig({
+                exportDir: config.exportDir, projectsDir: config.projectsDir,
+                aiProvider: config.aiProvider, ollamaModel: config.ollamaModel, ollamaUrl: config.ollamaUrl, ollamaThink: config.ollamaThink,
+                ...(apiKey.trim() ? { anthropicApiKey: apiKey.trim() } : {}),
+              }));
               onSaved();
               onClose();
             } catch (err) {
@@ -376,8 +382,39 @@ function SettingsDialog({ onClose, onSaved, onError }: { onClose: () => void; on
               <span>Dossier des projets (.json)</span>
               <input className="wide" value={config.projectsDir} onChange={(e) => setConfig({ ...config, projectsDir: e.target.value })} />
             </label>
+            <fieldset className="ai-settings">
+              <legend>Assistant IA</legend>
+              <label className="check">
+                <input type="radio" name="ai" checked={config.aiProvider !== 'claude'} onChange={() => setConfig({ ...config, aiProvider: 'ollama' })} />
+                IA locale avec Ollama (gratuit, rien ne quitte le Mac) — recommandé
+              </label>
+              {config.aiProvider !== 'claude' && (
+                <div className="grid-2">
+                  <label className="field">
+                    <span>Modèle Ollama</span>
+                    <input value={config.ollamaModel ?? ''} onChange={(e) => setConfig({ ...config, ollamaModel: e.target.value })} placeholder="qwen3:8b" />
+                  </label>
+                  <label className="field">
+                    <span>Adresse d'Ollama</span>
+                    <input value={config.ollamaUrl ?? ''} onChange={(e) => setConfig({ ...config, ollamaUrl: e.target.value })} placeholder="http://127.0.0.1:11434" />
+                  </label>
+                  <label className="check" style={{ gridColumn: '1 / -1' }}>
+                    <input type="checkbox" checked={config.ollamaThink !== false} onChange={(e) => setConfig({ ...config, ollamaThink: e.target.checked })} />
+                    Réflexion avant de répondre (plus fiable, plus lent)
+                  </label>
+                  <p className="muted small" style={{ gridColumn: '1 / -1' }}>
+                    16 Go de mémoire : <code>qwen3:8b</code> (5 Go). 32 Go ou plus : <code>qwen3:14b</code> (9 Go), plus fiable sur les
+                    longues demandes. Le modèle se télécharge depuis le panneau de l'assistant ou avec <code>ollama pull …</code>.
+                  </p>
+                </div>
+              )}
+              <label className="check">
+                <input type="radio" name="ai" checked={config.aiProvider === 'claude'} onChange={() => setConfig({ ...config, aiProvider: 'claude' })} />
+                Claude (API Anthropic, payant, la demande part chez Anthropic)
+              </label>
+            </fieldset>
             <label className="field">
-              <span>Clé API Anthropic (assistant IA) — {config.hasAnthropicKey ? 'déjà réglée ; en coller une autre pour la remplacer' : 'pas encore réglée'}</span>
+              <span>Clé API Anthropic (seulement pour le mode Claude) — {config.hasAnthropicKey ? 'déjà réglée ; en coller une autre pour la remplacer' : 'pas encore réglée'}</span>
               <input className="wide" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-ant-…" />
             </label>
             {config.hasAnthropicKey && (

@@ -7,6 +7,19 @@ export interface AppConfig {
   projectsDir: string;
   /** La clé elle-même ne revient jamais du serveur. */
   hasAnthropicKey?: boolean;
+  /** Moteur de l'assistant : IA locale (Ollama) ou Claude (API Anthropic). */
+  aiProvider?: 'ollama' | 'claude';
+  ollamaUrl?: string;
+  ollamaModel?: string;
+  ollamaThink?: boolean;
+}
+
+export interface AiStatus {
+  provider: 'ollama' | 'claude';
+  model: string;
+  ollama: { running: boolean; hasModel: boolean; models: { name: string; size: number; params?: string }[]; error?: string };
+  hasAnthropicKey: boolean;
+  pull: { model: string | null; status: string | null; completed: number; total: number; error: string | null; running: boolean };
 }
 
 export interface AiReply {
@@ -32,6 +45,8 @@ export const api = {
   setConfig: (config: Partial<AppConfig> & { anthropicApiKey?: string }) => call<AppConfig>('PUT', '/api/config', config),
   aiChat: (conversationId: string, message: string, plan: Plan | null) =>
     call<AiReply>('POST', '/api/ai/chat', { conversationId, message, plan }),
+  aiStatus: () => call<AiStatus>('GET', '/api/ai/status'),
+  aiPull: () => call<{ ok: true }>('POST', '/api/ai/pull'),
   aiReset: (conversationId: string) => call<{ ok: true }>('POST', '/api/ai/reset', { conversationId }),
   exportLua: (fileName: string, content: string) => call<{ path: string }>('POST', '/api/export', { fileName, content }),
   openFolder: (which: 'export' | 'projects') => call<{ ok: true }>('POST', '/api/open-folder', { which }),
