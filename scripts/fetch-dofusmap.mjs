@@ -6,6 +6,7 @@
 // Mines : on n'interroge que les couples (ressource, mine) où les données du Continent / d'Incarnam
 // signalent cette ressource sur une case de la mine (public/data/mines.json, npm run mines).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const ROOT = 'https://dofus-map.com';
@@ -22,6 +23,30 @@ const JOB_OF = (id) => (id >= 1 && id <= 22 ? 'Pêcheur'
     : (id >= 36 && id <= 46) || id === 80 ? 'Alchimiste'
       : id >= 47 && id <= 65 ? 'Bûcheron'
         : id >= 67 && id <= 79 ? 'Mineur' : 'Divers');
+
+/** Réponses déjà reçues (reprise après une coupure) : fichier temporaire, effacé à la fin. */
+const cacheFile = path.join(os.tmpdir(), 'scriptgen-dofusmap-cache.json');
+const cache = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, 'utf8')) : {};
+
+/** Positions d'une ressource dans un groupe Dofus-Map, avec pause et nouvel essai en cas de coupure. */
+async function fetchPositions(resourceId, groupId) {
+  const key = `${resourceId}:${groupId}`;
+  if (key in cache) return cache[key];
+  for (let attempt = 1; ; attempt++) {
+    await sleep(3500);
+    try {
+      const res = await fetch(`${ROOT}/getRessourceData.php?ressourceId=${resourceId}&groupId=${groupId}`, { headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      cache[key] = parsePositions(await res.text());
+      fs.writeFileSync(cacheFile, JSON.stringify(cache));
+      return cache[key];
+    } catch (e) {
+      if (attempt >= 4) throw new Error(`Ressource ${resourceId}, groupe ${groupId} : ${e.message}`);
+      console.log(`  coupure (${e.message}), nouvel essai dans ${attempt * 10} s…`);
+      await sleep(attempt * 10000);
+    }
+  }
+}
 
 /** "4*0:24+-29:-40_1*3:22 27" → [[0,24,4],[-29,-40,4],[3,22,1],[3,27,1]] */
 export function parsePositions(text) {
@@ -58,10 +83,7 @@ if (minesOnly) {
   for (const r of resources) {
     positions[r.id] = {};
     for (const { group, world } of GROUPS) {
-      await sleep(3500);
-      const res = await fetch(`${ROOT}/getRessourceData.php?ressourceId=${r.id}&groupId=${group}`, { headers });
-      if (!res.ok) throw new Error(`${r.name} (groupe ${group}) : HTTP ${res.status}`);
-      const cells = parsePositions(await res.text());
+      const cells = await fetchPositions(r.id, group);
       if (cells.length) positions[r.id][world] = cells;
     }
     console.log(`${r.name} : ${Object.values(positions[r.id]).reduce((n, c) => n + c.length, 0)} cartes`);
@@ -83,10 +105,7 @@ if (fs.existsSync(minesFile)) {
   }
   console.log(`Mines : ${pairs.length} requêtes.`);
   for (const [i, [g, r]] of pairs.entries()) {
-    await sleep(3500);
-    const res = await fetch(`${ROOT}/getRessourceData.php?ressourceId=${r.id}&groupId=${g.id}`, { headers });
-    if (!res.ok) throw new Error(`${r.name} (${g.name}) : HTTP ${res.status}`);
-    const cells = parsePositions(await res.text());
+    const cells = await fetchPositions(r.id, g.id);
     if (cells.length) (minePositions[g.id] ??= {})[r.id] = cells;
     if (i % 25 === 0) console.log(`  ${i + 1}/${pairs.length} ${g.name} · ${r.name} : ${cells.length}`);
   }
@@ -102,4 +121,5 @@ fs.writeFileSync(path.join(out, 'resources.json'), `${JSON.stringify({
   /** id du groupe Dofus-Map (mine) → id ressource → [x, y, nombre] */
   minePositions,
 })}\n`);
+fs.rmSync(cacheFile, { force: true });
 console.log(`resources.json : ${resources.length} ressources.`);

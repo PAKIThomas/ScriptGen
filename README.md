@@ -144,9 +144,10 @@ Tout le reste est dans le dépôt et fonctionne sans internet :
 - `maps.json`, `subareas.json`, `areas.json`, `zaaps.json` : API publique DofusDB, régénérés par `npm run maps` ;
 - `worlds.json` (géométrie des calques) et `banks.json` (banques) : repris du projet Script Creator (`limposteur/mizan_script`) ;
 - polices Inter et Cinzel (`public/fonts`, licence SIL Open Font License) : reprises du même projet ;
-- `resources.json` + `dofusmap-resources.png` : ressources récoltables, leurs positions (nombre par carte, Continent
-  et Incarnam) et leurs icônes, récupérées une fois sur Dofus-Map par `npm run resources` (≈ 10 min : le script
-  attend 3,5 s entre deux requêtes car Dofus-Map bloque au-delà de 100 requêtes en 5 minutes) ;
+- `resources.json` + `dofusmap-resources.png` : ressources récoltables, leurs positions (nombre par carte sur le
+  Continent et à Incarnam, nombre par salle dans les mines) et leurs icônes, récupérées une fois sur Dofus-Map par
+  `npm run resources` (≈ 50 min : le script attend 3,5 s entre deux requêtes car Dofus-Map bloque au-delà de
+  100 requêtes en 5 minutes ; il reprend là où il s'était arrêté après une coupure ; `-- --mines-only` ne refait que les mines) ;
 - `mines.json` : mines, grottes et souterrains (salles, id de carte de chaque salle, ressources, entrées) tirés du
   catalogue Dofus-Map du Script Creator (`npm run mines -- <chemin>/mizan_script/public/worldmap/data/dofus-map-groups.json`).
   Les salles dont l'id est inconnu, ou rapproché d'une carte d'extérieur (douteux), sont écartées.
