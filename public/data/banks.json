@@ -1,0 +1,82 @@
+[
+ {
+  "mapId": 192415750,
+  "zone": "Cité d'Astrub",
+  "x": 4,
+  "y": -18,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 99095051,
+  "zone": "Village d'Amakna",
+  "x": 2,
+  "y": -2,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 217059328,
+  "zone": "Bonta",
+  "x": -31,
+  "y": -57,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 214696968,
+  "zone": "Brâkmar",
+  "x": -26,
+  "y": 36,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 86511105,
+  "zone": "Île d'Otomai",
+  "x": -47,
+  "y": 21,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 84935175,
+  "zone": "Village des Éleveurs",
+  "x": -16,
+  "y": 4,
+  "worldMap": -1,
+  "interior": true
+ },
+ {
+  "mapId": 207618052,
+  "zone": "Village de Pandala",
+  "x": 20,
+  "y": -30,
+  "worldMap": -1,
+  "interior": false
+ },
+ {
+  "mapId": 173937154,
+  "zone": "Port de Sarakech",
+  "x": 15,
+  "y": -57,
+  "worldMap": -1,
+  "interior": false
+ },
+ {
+  "mapId": 54534165,
+  "zone": "La Bourgade (Frigost)",
+  "x": -77,
+  "y": -41,
+  "worldMap": -1,
+  "interior": false
+ },
+ {
+  "mapId": 91753985,
+  "zone": "Sufokia",
+  "x": 14,
+  "y": 25,
+  "worldMap": -1,
+  "interior": true
+ }
+]

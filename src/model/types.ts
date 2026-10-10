@@ -1,0 +1,176 @@
+// Modèle d'un projet ScriptGen : tout ce qui sert à générer UN fichier .lua.
+// Sauvegardé tel quel en JSON (voir server/index.mjs, /api/projects).
+
+/** Valeur Lua littérale. `{ raw }` = expression Lua conservée telle quelle. */
+export type LuaValue =
+  | string
+  | number
+  | boolean
+  | LuaValue[]
+  | { [key: string]: LuaValue }
+  | RawLua;
+
+export interface RawLua {
+  raw: string;
+}
+
+export function isRaw(v: unknown): v is RawLua {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) && typeof (v as RawLua).raw === 'string'
+    && Object.keys(v as object).length === 1;
+}
+
+/**
+ * Une étape de trajet : une carte et ce qu'on y fait.
+ * Champs = clés d'étape de l'API (« Trajet déclaratif (move() / bank()) »).
+ */
+export interface Step {
+  id: string;
+  /** "x,y" (extérieur), id de carte (intérieur) ou "havenbag". */
+  map: string | number;
+  regeneration?: number | true;
+  gather?: boolean;
+  forcegather?: boolean;
+  fight?: boolean;
+  forcefight?: boolean;
+  npcBank?: boolean;
+  /** "cellule|code[|skillId]" */
+  lockedStorage?: string;
+  /** "cellule|code[|propriétaire]" */
+  lockedHouse?: string;
+  cell?: number;
+  /** Corps Lua d'une fonction (ex. `function() ... end`) ou nom de fonction. */
+  custom?: RawLua;
+  lockedCustom?: RawLua;
+  door?: number | string;
+  exitCell?: number;
+  /** Cellule de la statue (seulement dans phenix()). */
+  phenix?: number | string;
+  /** Sortie vers la carte suivante. */
+  path?: LuaValue;
+  /** Nom de la clé utilisée pour la sortie (changeMap prime sur path). */
+  pathKey?: 'path' | 'changeMap' | 'paths';
+  /** Clés non reconnues, conservées dans l'ordre. */
+  extra?: [string, LuaValue][];
+  /** Commentaire en fin de ligne (sans le `--`). */
+  comment?: string;
+  /** Lignes de commentaire placées juste au-dessus de l'étape (texte Lua complet, `--` compris). */
+  notes?: string[];
+}
+
+/** Réglages appliqués à l'entrée d'un palier (module config: de l'API). */
+export interface BracketConfig {
+  gatherList?: number[];
+  minMonsters?: number;
+  maxMonsters?: number;
+  forbiddenMonsters?: number[];
+  mandatoryMonsters?: number[];
+}
+
+/** Un palier de niveau (ou le trajet entier s'il n'y a pas de paliers). */
+export interface Bracket {
+  id: string;
+  name: string;
+  /** Niveau minimal (inclus). Le maximum est le min du palier suivant - 1. */
+  minLevel: number;
+  config: BracketConfig;
+  /** Lua conservé tel quel, exécuté dans le palier avant le trajet (import d'un script écrit à la main). */
+  preamble?: string;
+  steps: Step[];
+  /** Lignes de commentaire après la dernière étape (ex. étapes mises en commentaire). */
+  tailNotes?: string[];
+}
+
+export type LevelSource =
+  | { kind: 'none' }
+  | { kind: 'job'; jobId: number }
+  | { kind: 'character' };
+
+export interface Route {
+  /** Lua conservé tel quel, exécuté en tête de la fonction (avant le choix du palier). */
+  preamble?: string;
+  levelSource: LevelSource;
+  brackets: Bracket[];
+}
+
+export interface FightEndHook {
+  /** if result.won then openBags() end */
+  openBagsOnWin: boolean;
+  /** if result.lost then notify("Combat perdu") end */
+  notifyOnLoss?: boolean;
+}
+
+export interface StoppedHook {
+  /** notify("Script arrêté : " .. reason) */
+  notify: boolean;
+}
+
+export type StatName = 'vitality' | 'wisdom' | 'strength' | 'intelligence' | 'chance' | 'agility';
+
+/** Réglages de combat posés par le script (module combat: de l'API), au-dessus de l'onglet Combat. */
+export interface CombatProfile {
+  autoFight?: boolean;
+  style?: 'agressif' | 'fuyard' | 'passif';
+  target?: 'proche' | 'pv' | 'loin';
+  speed?: 'Instant' | 'rapide' | 'lent';
+  kiteMin?: number;
+  kiteMax?: number;
+  maxCasts?: number;
+  finishKill?: boolean;
+  autoPreFight?: boolean;
+  challengeMode?: 'off' | 'auto';
+}
+
+/**
+ * Automatismes ajoutés en tête de move() par un petit bloc Lua généré (scriptgenTick).
+ * Uniquement des fonctions de l'API : inventory:equip / itemPosition, character:upgradeStat,
+ * combat:set…, setPrivate, map:containsArchi, notify.
+ */
+export interface Automation {
+  /** Équiper un objet (gid) dès que le personnage atteint ce niveau. */
+  equip: { level: number; gid: number }[];
+  /** inventory:stuff() à chaque niveau : remplit les emplacements libres avec le meilleur équipement du sac. */
+  autoStuff?: boolean;
+  /** Investir automatiquement les points de caractéristiques. */
+  autoStat?: StatName;
+  combat: CombatProfile;
+  /** Passer le personnage en statut privé au démarrage. */
+  privateStatus?: boolean;
+  /** Notification quand un archimonstre est sur la carte. */
+  archNotify?: boolean;
+  /** Arrêter le script à ce niveau (personnage ou métier). */
+  stopAt?: { level: number; jobId?: number };
+}
+
+/** Sections du fichier, dans l'ordre où elles sont écrites. */
+export type Section =
+  | { kind: 'globals' }
+  | { kind: 'move' }
+  | { kind: 'bank' }
+  | { kind: 'phenix' }
+  | { kind: 'onFightEnd' }
+  | { kind: 'stopped' }
+  | { kind: 'automation' }
+  | { kind: 'raw'; id: string; label: string; text: string };
+
+export type ScriptMode = 'gather' | 'fight' | 'mixed';
+
+export interface Project {
+  format: 'scriptgen-project';
+  version: 1;
+  name: string;
+  /** Nom du fichier exporté (sans dossier). */
+  fileName: string;
+  mode: ScriptMode;
+  /** Lignes de commentaire en tête de fichier (sans le `-- `). */
+  header: string[];
+  /** Globals de configuration activés (clé = nom du global). */
+  globals: Record<string, LuaValue>;
+  /** null = move() est écrite à la main et conservée dans une section « Lua brut ». */
+  move: Route | null;
+  bank: Route | null;
+  phenix: Route | null;
+  onFightEnd: FightEndHook | null;
+  stopped?: StoppedHook | null;
+  automation?: Automation | null;
+  sections: Section[];
+}
